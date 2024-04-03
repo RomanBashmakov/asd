@@ -1,0 +1,5 @@
+*.zip
+Debug
+*.launch
+.metadata
+

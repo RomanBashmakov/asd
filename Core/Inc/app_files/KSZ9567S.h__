@@ -1,0 +1,35 @@
+/*
+ * KSZ9567S.h
+ *
+ *  Created on: 24 нояб. 2020 г.
+ *      Author: zhuchenkovao
+ */
+
+
+
+
+#ifndef INC_APP_FILES_KSZ9567S_H_
+#define INC_APP_FILES_KSZ9567S_H_
+
+
+#include "twi.h"
+
+
+
+typedef struct S_KSZ9567S{
+
+  T_TWI         twi;
+
+
+
+} T_KSZ9567S;
+
+
+char KSZ9567_RegReadByte(T_KSZ9567S *hub, uint16_t addr);
+void KSZ9567_RegWriteByte(T_KSZ9567S *hub, uint16_t addr, uint8_t byte);
+
+uint16_t KSZ9567_SgmiiRegRead(T_KSZ9567S *hub, uint32_t addr);
+void KSZ9567_SgmiiRegWrite(T_KSZ9567S *hub, uint32_t addr, uint16_t data);
+
+
+#endif /* INC_APP_FILES_KSZ9567S_H_ */

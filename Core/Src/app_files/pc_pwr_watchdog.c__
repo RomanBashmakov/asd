@@ -1,0 +1,36 @@
+/*
+ * pc_pwr_watchdog.c
+ *
+ *  Created on: Nov 10, 2021
+ *      Author: zhuchenkovao
+ */
+
+#include <pc_pwr_watchdog.h_>
+#include "main.h"
+
+#include "timers_hw2.h"
+
+
+
+TTimer   tmrWatchInterval;
+
+
+//====================================================
+void PCWDG_init()
+{
+
+  TIMERS_setTimer(&tmrWatchInterval, 60000);
+
+
+
+}
+
+
+
+//====================================================
+void PCWDG_process()
+{
+
+
+
+}

@@ -1,0 +1,110 @@
+/*
+ * config.c
+ *
+ *  Created on: Jan 22, 2020
+ *      Author: zhuchenkovao
+ */
+
+#include <stdio.h>
+
+
+#include "config.h"
+
+
+#include "lwip.h"
+
+
+
+#include "crc8_icode.h"
+
+
+
+TConfig   config1;
+uint8_t  configState;
+
+// инициализация и загузка конфигурации
+char CONFIG_init()
+{
+  char ret = 0;
+  configState = CONFIG_STATE_OK;
+
+  printf ("CONFIG init...\n");
+
+  if (sizeof (TConfig) != CONFIG_STRUCT_SIZE){
+    printf ("error: config size != %d  (%d)\n", CONFIG_STRUCT_SIZE, sizeof (TConfig));
+  }
+
+  FERAM_FM25L16B_readData (FERAM_CONFIG_ADDRESS_1, (uint8_t*) &config1, sizeof (TConfig));
+
+  // вычисление контрольной суммы
+  if (config1.crc8 != crc8CalcICode((uint8_t*)&config1, sizeof (TConfig) - 1))
+  {
+
+    configState = CONFIG_STATE_READ_ERROR_CRC;
+
+    printf ("error: reading config, default loaded...\n");
+    CONFIG_loadDefault();
+    ret = 1;
+  }
+
+  if (config1.configVersion != CONFIG_VERSION)
+  {
+    configState = CONFIG_STATE_READ_ERROR_VERSION;
+    printf ("error: reading config, incompatible version, default loaded...\n");
+    CONFIG_loadDefault();
+    ret = 1;
+
+  }
+
+
+  return ret;
+
+}
+
+
+// сохранение конфигурации
+void CONFIG_save(void)
+{
+
+  config1.crc8 = crc8CalcICode((uint8_t*)&config1, sizeof (TConfig) - 1);
+
+  FERAM_FM25L16B_writeData (FERAM_CONFIG_ADDRESS_1, (uint8_t*)&config1, sizeof (TConfig));
+  configState = CONFIG_STATE_OK;
+
+}
+
+
+// загрузка параметров по умолчанию
+void CONFIG_loadDefault(void)
+{
+
+
+  config1.configVersion = CONFIG_VERSION;
+  config1.ip = 0xDE0AA8C0;        // 192.168.10.222
+  config1.netmask = 0x00FFFFFF;   // 255.255.255.0
+  config1.gateway = 0x010AA8C0;   // 192.168.10.1
+
+  for (int i = 0; i < CONFIG_NTP_STRING_SIZE; i++) {
+    config1.ntpServerAddress[i] = 0;
+  }
+
+  // включаем всё
+  for (int i = 0; i < CHECK_DEVICES_COUNT; i++) {
+    config1.stateControlCfg[i] = STCFG_CONTROL_ENABLED | STCFG_TIMEGRP_ENABLED;
+  }
+
+  // закоментированно, оставлено для примера, если по умолчанию должно быть что-то выключено
+  // config1.stateControlCfg[LDEV_TABLO1] &= ~STCFG_CONTROL_ENABLED;
+
+
+  // заполняем резерв нулями
+  for (int i = 0; i < CONFIG1_RESERV_SIZE; i++) {
+    config1.reserv[i] = 0;
+  }
+
+
+}
+
+
+
+
