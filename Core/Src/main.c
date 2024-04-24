@@ -63,6 +63,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define MAIN_SYSTEM_START_DELAY_MS 0
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -270,6 +271,7 @@ int main(void)
 
   // включение блока питания компьютера
   // после настройки SGMII
+  HAL_Delay(MAIN_SYSTEM_START_DELAY_MS);
   HAL_GPIO_WritePin(GPO_12V_en_GPIO_Port, GPO_12V_en_Pin, GPIO_PIN_SET);
   HAL_Delay(500);
 
