@@ -384,7 +384,7 @@ void ARINC429_process()
 //    HI3220_transmitDirect (&hi, 0, txPacketARINC429_1, 1);
     ARINC_Word_300.str.label = 0300;
     ARINC_Word_300.str.sdi = 0x03;
-
+    ARINC_Word_300.str.nc = 0x00;
     // проверка потребляемой мощности по камерам и формирование состояний пакета ARINC-429
     // если потребляемая мощность меньше 2 ватт, то устанавливаем 1
     ARINC_Word_300.str.cam1_fault = (T_INA226_getPower(&powerSensA[0]) < 2)? true : false; 		if(ARINC_Word_300.str.cam1_fault) { Non_Critical_Fault = true; cams_N_faults++; }
@@ -414,6 +414,7 @@ void ARINC429_process()
 	else ARINC_Word_300.str.System_Status = SYS_NC;
 
 	ARINC_Word_300.str.matrix = A300_Matrix;
+  ARINC_Word_300.str.nc = 0x00;
 
     HI3220_transmitDirect (&hi, 0, ARINC_Word_300.arinc_array, 1);
   }
