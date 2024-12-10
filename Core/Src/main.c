@@ -215,6 +215,7 @@ int main(void)
   HAL_Delay(500);
 
   // включение блока питания камер
+  HAL_Delay(MAIN_SYSTEM_START_DELAY_MS);
   HAL_GPIO_WritePin(GPO_28Vcam_en_GPIO_Port, GPO_28Vcam_en_Pin, GPIO_PIN_SET);
 
   HAL_GPIO_WritePin(GPO_hub1_cs_GPIO_Port, GPO_hub1_cs_Pin, GPIO_PIN_SET);
@@ -271,7 +272,6 @@ int main(void)
 
   // включение блока питания компьютера
   // после настройки SGMII
-  HAL_Delay(MAIN_SYSTEM_START_DELAY_MS);
   HAL_GPIO_WritePin(GPO_12V_en_GPIO_Port, GPO_12V_en_Pin, GPIO_PIN_SET);
   HAL_Delay(500);
 
