@@ -71,7 +71,8 @@ EmptyLineAfterAccessModifier: Never
 EmptyLineBeforeAccessModifier: LogicalBlock
 ExperimentalAutoDetectBinPacking: false
 PackConstructorInitializers: NextLine
-BasedOnStyle:    ''
+BasedOnStyle:  Google
+# BasedOnStyle:    ''
 ConstructorInitializerAllOnOneLineOrOnePerLine: false
 AllowAllConstructorInitializersOnNextLine: true
 FixNamespaceComments: true
@@ -108,7 +109,8 @@ IndentGotoLabels: true
 IndentPPDirectives: None
 IndentExternBlock: AfterExternBlock
 IndentRequires:  false
-IndentWidth:     2
+IndentWidth:     4
+BreakBeforeBraces: Allman   # или Linux
 IndentWrappedFunctionNames: false
 InsertTrailingCommas: None
 JavaScriptQuotes: Leave

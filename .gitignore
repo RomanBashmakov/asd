@@ -2,4 +2,6 @@
 Debug
 *.launch
 .metadata
+html/
+latex/
 
