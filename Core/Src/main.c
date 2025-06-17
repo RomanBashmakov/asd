@@ -84,11 +84,6 @@ u8_t Channel_No = 0;
  */
 TTimer tmrDebug;
 
-/**
- * @brief Переменная для отладки (закомментирована).
- */
-// u32_t EventPeriod;//DBG
-// u32_t npkts;//DBG
 
 /**
  * @brief Терминал для отладочного вывода.
@@ -180,6 +175,9 @@ extern union W300_t ARINC_Word_300;
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+
+
+void Init_Peripherals(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -187,8 +185,23 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-//=============================================================================
-// функция отладочного вывода в SWD  Stm32
+void Init_Peripherals(void)
+{
+    MX_GPIO_Init();
+    MX_DMA_Init();
+    MX_SPI1_Init();
+    MX_SPI3_Init();
+    MX_I2C1_Init();
+    MX_SPI2_Init();
+    MX_ADC1_Init();
+    MX_RTC_Init();
+    MX_I2C4_Init();
+    MX_USART3_UART_Init();
+    MX_USART1_UART_Init();
+    MX_USART2_UART_Init();
+    MX_TIM12_Init();
+}
+
 /**
  * @brief Функция отладочного вывода через SWD (Serial Wire Debug) интерфейс STM32.
  *        Используется для перенаправления вывода функций printf и puts.
@@ -244,19 +257,7 @@ int main(void)
     /* USER CODE END SysInit */
 
     /* Initialize all configured peripherals */
-    MX_GPIO_Init();
-    MX_DMA_Init();
-    MX_SPI1_Init();
-    MX_SPI3_Init();
-    MX_I2C1_Init();
-    MX_SPI2_Init();
-    MX_ADC1_Init();
-    MX_RTC_Init();
-    MX_I2C4_Init();
-    MX_USART3_UART_Init();
-    MX_USART1_UART_Init();
-    MX_USART2_UART_Init();
-    MX_TIM12_Init();
+    Init_Peripherals();
     /* USER CODE BEGIN 2 */
 
     TERMINAL_init(&termDbg);
@@ -265,8 +266,6 @@ int main(void)
     TIMERS_setTimer(&tmrDebug, 30000);
 
     printf("init \n");
-
-    // int t1 = 0;
 
     printf("W25Q32 init...\n");
     FLASH_W25Q32_init(
@@ -299,53 +298,12 @@ int main(void)
     // init ethernet hubs
     T_KSZ9567S_SPI hub[4];
 
-    hub[0].spi = &hspi3;
-    hub[0].GPIO_port = GPO_hub1_cs_GPIO_Port;
-    hub[0].GPIO_pin = GPO_hub1_cs_Pin;
+    InitEthernetHubs(hub, &hspi3,
+                     (GPIO_TypeDef *[]){GPO_hub1_cs_GPIO_Port, GPO_hub2_cs_GPIO_Port, GPO_hub3_cs_GPIO_Port, GPO_hub4_cs_GPIO_Port},
+                     (uint16_t[]){GPO_hub1_cs_Pin, GPO_hub2_cs_Pin, GPO_hub3_cs_Pin, GPO_hub4_cs_Pin},
+                     4);
 
-    hub[1].spi = &hspi3;
-    hub[1].GPIO_port = GPO_hub2_cs_GPIO_Port;
-    hub[1].GPIO_pin = GPO_hub2_cs_Pin;
-
-    hub[2].spi = &hspi3;
-    hub[2].GPIO_port = GPO_hub3_cs_GPIO_Port;
-    hub[2].GPIO_pin = GPO_hub3_cs_Pin;
-
-    hub[3].spi = &hspi3;
-    hub[3].GPIO_port = GPO_hub4_cs_GPIO_Port;
-    hub[3].GPIO_pin = GPO_hub4_cs_Pin;
-
-    KSZ9567_SPI_RegWriteByte(&hub[0], 0x6301,
-                             0x18);  // set ingress internal delay to 1.5ns
-    KSZ9567_SPI_SgmiiRegWrite(&hub[0], 0x1F0000, 0x8140);  // reset
-    KSZ9567_SPI_SgmiiRegWrite(
-        &hub[0], 0x1F8001,
-        0x14);  // (SGMII) set to MAC device, set SGMII Link Status to 1
-    KSZ9567_SPI_SgmiiRegWrite(&hub[0], 0x1F0004, 0x20);
-
-    KSZ9567_SPI_RegWriteByte(&hub[1], 0x6301,
-                             0x18);  // set ingress internal delay to 1.5ns
-    KSZ9567_SPI_SgmiiRegWrite(&hub[1], 0x1F0000, 0x8140);  // reset
-    KSZ9567_SPI_SgmiiRegWrite(
-        &hub[1], 0x1F8001,
-        0x14);  // (SGMII) set to MAC device, set SGMII Link Status to 1
-    KSZ9567_SPI_SgmiiRegWrite(&hub[1], 0x1F0004, 0x20);
-
-    KSZ9567_SPI_RegWriteByte(&hub[2], 0x6301,
-                             0x18);  // set ingress internal delay to 1.5ns
-    KSZ9567_SPI_SgmiiRegWrite(&hub[2], 0x1F0000, 0x8140);  // reset
-    KSZ9567_SPI_SgmiiRegWrite(
-        &hub[2], 0x1F8001,
-        0x14);  // (SGMII) set to MAC device, set SGMII Link Status to 1
-    KSZ9567_SPI_SgmiiRegWrite(&hub[2], 0x1F0004, 0x20);
-
-    KSZ9567_SPI_RegWriteByte(&hub[3], 0x6301,
-                             0x18);  // set ingress internal delay to 1.5ns
-    KSZ9567_SPI_SgmiiRegWrite(&hub[3], 0x1F0000, 0x8140);  // reset
-    KSZ9567_SPI_SgmiiRegWrite(
-        &hub[3], 0x1F8001,
-        0x14);  // (SGMII) set to MAC device, set SGMII Link Status to 1
-    KSZ9567_SPI_SgmiiRegWrite(&hub[3], 0x1F0004, 0x20);
+    InitEthernetHubRegisters(hub, 4);
 
     // включение вентилятора
     HAL_TIM_PWM_Start(&htim12, TIM_CHANNEL_2);
@@ -382,12 +340,6 @@ int main(void)
 
     MCP23008_init();
 
-    //  u8_t __regs[11];
-    //
-    //  for(u8_t i = 0; i < 11; i++) {
-    //    __regs[i] = MCP23008_Read_Reg(&ic_mcp23008, i);
-    //  }
-
     // ===== STATUSES: Set INITIAL STATE =====
     A300_Matrix = AMX_NORMAL_OPERATION;
     //  System_Status = 		SYS_NORMAL_OPERATION;
@@ -415,7 +367,7 @@ int main(void)
 
     while (1)
     {
-        //	  _STR
+        	  _STR
 
         // однократная прямая передача сообщений (может быть использованна
         // вместе с сообщениями передаваемими планировщиком)
@@ -838,6 +790,48 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 }
 
 /* USER CODE END 4 */
+
+/**
+ * @brief Инициализация массива Ethernet-хабов.
+ * 
+ * Эта функция инициализирует каждый элемент массива hub, устанавливая SPI-интерфейс,
+ * порт GPIO и пин для выбора чипа (chip select).
+ * 
+ * @param hub Массив структур T_KSZ9567S_SPI для инициализации.
+ * @param spi Указатель на SPI-интерфейс, используемый всеми хабами.
+ * @param ports Массив указателей на GPIO-порты для выбора чипа каждого хаба.
+ * @param pins Массив пинов GPIO для выбора чипа каждого хаба.
+ * @param count Количество хабов в массиве.
+ */
+void InitEthernetHubs(T_KSZ9567S_SPI hub[], SPI_HandleTypeDef *spi, GPIO_TypeDef* ports[], uint16_t pins[], int count)
+{
+    for (int i = 0; i < count; i++)
+    {
+        hub[i].spi = spi;
+        hub[i].GPIO_port = ports[i];
+        hub[i].GPIO_pin = pins[i];
+    }
+}
+
+/**
+ * @brief Настройка регистров каждого Ethernet-хаба.
+ * 
+ * Эта функция выполняет последовательность SPI-записей для настройки внутренних регистров
+ * каждого хаба, включая установку задержки, сброс и конфигурацию SGMII.
+ * 
+ * @param hub Массив структур T_KSZ9567S_SPI, представляющих хабы для настройки.
+ * @param count Количество хабов в массиве.
+ */
+void InitEthernetHubRegisters(T_KSZ9567S_SPI hub[], int count)
+{
+    for (int i = 0; i < count; i++)
+    {
+        KSZ9567_SPI_RegWriteByte(&hub[i], 0x6301, 0x18);  // set ingress internal delay to 1.5ns
+        KSZ9567_SPI_SgmiiRegWrite(&hub[i], 0x1F0000, 0x8140);  // reset
+        KSZ9567_SPI_SgmiiRegWrite(&hub[i], 0x1F8001, 0x14);  // (SGMII) set to MAC device, set SGMII Link Status to 1
+        KSZ9567_SPI_SgmiiRegWrite(&hub[i], 0x1F0004, 0x20);
+    }
+}
 
 /**
  * @brief  This function is executed in case of error occurrence.
