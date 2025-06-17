@@ -57,7 +57,11 @@
  * @def MAIN_SYSTEM_START_DELAY_MS
  * @brief Задержка старта основной системы в миллисекундах.
  */
-#define MAIN_SYSTEM_START_DELAY_MS 0
+#define MAIN_SYSTEM_START_DELAY_MS 500
+
+
+#define HUBS_CNT 4
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -179,6 +183,8 @@ void Init_Peripherals(void);
 
 static void W25Q32_Flash_Init(SPI_HandleTypeDef *hspi, GPIO_TypeDef *GPIO_Port, uint16_t GPIO_Pin);
 
+void SetHubCSPins(GPIO_PinState state);
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN PFP */
@@ -217,6 +223,7 @@ int _write(int file, char *ptr, int len)
  * @brief  Main
  * @retval int
  */
+
 int main(void)
 {
     /* USER CODE BEGIN 1 */
@@ -261,26 +268,18 @@ int main(void)
     STM32_init();  // инициализация стм32 после флеш и до инициализации лога !!!
                    // т.к. здесь может произойти очистка флэш-памяти
 
-    HAL_GPIO_WritePin(GPO_hub1_cs_GPIO_Port, GPO_hub1_cs_Pin, GPIO_PIN_RESET);
-    HAL_GPIO_WritePin(GPO_hub2_cs_GPIO_Port, GPO_hub2_cs_Pin, GPIO_PIN_RESET);
-    HAL_GPIO_WritePin(GPO_hub3_cs_GPIO_Port, GPO_hub3_cs_Pin, GPIO_PIN_RESET);
-    HAL_GPIO_WritePin(GPO_hub4_cs_GPIO_Port, GPO_hub4_cs_Pin, GPIO_PIN_RESET);
+    SetHubCSPins(GPIO_PIN_RESET);  // Сброс всех пинов выбора чипа Ethernet-хабов
 
-    HAL_Delay(500);
-
-    // включение блока питания камер
+    // включение блока питания камер с задержкой
     HAL_Delay(MAIN_SYSTEM_START_DELAY_MS);
     HAL_GPIO_WritePin(GPO_28Vcam_en_GPIO_Port, GPO_28Vcam_en_Pin, GPIO_PIN_SET);
 
-    HAL_GPIO_WritePin(GPO_hub1_cs_GPIO_Port, GPO_hub1_cs_Pin, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(GPO_hub2_cs_GPIO_Port, GPO_hub2_cs_Pin, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(GPO_hub3_cs_GPIO_Port, GPO_hub3_cs_Pin, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(GPO_hub4_cs_GPIO_Port, GPO_hub4_cs_Pin, GPIO_PIN_SET);
+    SetHubCSPins(GPIO_PIN_SET);  // Установка всех пинов выбора чипа Ethernet-хабов
 
     HAL_Delay(200);
 
     // init ethernet hubs
-    T_KSZ9567S_SPI hub[4];
+    T_KSZ9567S_SPI hub[HUBS_CNT];
 
     InitEthernetHubs(
         hub, &hspi3,
@@ -288,9 +287,9 @@ int main(void)
                            GPO_hub3_cs_GPIO_Port, GPO_hub4_cs_GPIO_Port},
         (uint16_t[]){GPO_hub1_cs_Pin, GPO_hub2_cs_Pin, GPO_hub3_cs_Pin,
                      GPO_hub4_cs_Pin},
-        4);
+        HUBS_CNT);
 
-    InitEthernetHubRegisters(hub, 4);
+    InitEthernetHubRegisters(hub, HUBS_CNT);
 
     // включение вентилятора
     HAL_TIM_PWM_Start(&htim12, TIM_CHANNEL_2);
@@ -606,6 +605,23 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 /* USER CODE END 4 */
 
+/**
+ * @brief Устанавливает состояние всех пинов выбора чипа Ethernet-хабов.
+ *
+ * Эта функция упрощает управление состоянием пинов выбора чипа (chip select)
+ * для всех четырёх Ethernet-хабов, объединяя повторяющиеся вызовы HAL_GPIO_WritePin
+ * в одном месте.
+ *
+ * @param state Желаемое состояние пинов: GPIO_PIN_SET или GPIO_PIN_RESET.
+ */
+void SetHubCSPins(GPIO_PinState state)
+{
+    // Установка состояния всех пинов выбора чипа Ethernet-хабов
+    HAL_GPIO_WritePin(GPO_hub1_cs_GPIO_Port, GPO_hub1_cs_Pin, state);
+    HAL_GPIO_WritePin(GPO_hub2_cs_GPIO_Port, GPO_hub2_cs_Pin, state);
+    HAL_GPIO_WritePin(GPO_hub3_cs_GPIO_Port, GPO_hub3_cs_Pin, state);
+    HAL_GPIO_WritePin(GPO_hub4_cs_GPIO_Port, GPO_hub4_cs_Pin, state);
+}
 
 /**
  * @brief Инициализация всех необходимых периферийных устройств.
