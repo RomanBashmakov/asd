@@ -84,7 +84,6 @@ u8_t Channel_No = 0;
  */
 TTimer tmrDebug;
 
-
 /**
  * @brief Терминал для отладочного вывода.
  */
@@ -176,7 +175,6 @@ extern union W300_t ARINC_Word_300;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 
-
 void Init_Peripherals(void);
 /* USER CODE BEGIN PFP */
 
@@ -203,15 +201,16 @@ void Init_Peripherals(void)
 }
 
 /**
- * @brief Функция отладочного вывода через SWD (Serial Wire Debug) интерфейс STM32.
- *        Используется для перенаправления вывода функций printf и puts.
- * @param file Не используется, параметр для совместимости с системным вызовом write.
+ * @brief Функция отладочного вывода через SWD (Serial Wire Debug) интерфейс
+ * STM32. Используется для перенаправления вывода функций printf и puts.
+ * @param file Не используется, параметр для совместимости с системным вызовом
+ * write.
  * @param ptr Указатель на буфер с данными для вывода.
  * @param len Количество байт для вывода из буфера.
  * @retval Количество успешно выведенных байт.
  *
- * Данная функция посимвольно отправляет данные через ITM_SendChar, что позволяет
- * выводить отладочную информацию в отладчик, поддерживающий SWD.
+ * Данная функция посимвольно отправляет данные через ITM_SendChar, что
+ * позволяет выводить отладочную информацию в отладчик, поддерживающий SWD.
  */
 int _write(int file, char *ptr, int len)
 {
@@ -267,11 +266,7 @@ int main(void)
 
     printf("init \n");
 
-    printf("W25Q32 init...\n");
-    FLASH_W25Q32_init(
-        &hspi1, GPO_nvm_ncs_GPIO_Port,
-        GPO_nvm_ncs_Pin);  // инициализация флэш-памяти до инициализации stm32 и
-                           // лога !!! чтобы произошла очистка флэш-памяти
+    W25Q32_Flash_Init(&hspi1, GPO_nvm_ncs_GPIO_Port, GPO_nvm_ncs_Pin);
 
     printf("STM32 status init...\n");
     STM32_init();  // инициализация стм32 после флеш и до инициализации лога !!!
@@ -298,10 +293,13 @@ int main(void)
     // init ethernet hubs
     T_KSZ9567S_SPI hub[4];
 
-    InitEthernetHubs(hub, &hspi3,
-                     (GPIO_TypeDef *[]){GPO_hub1_cs_GPIO_Port, GPO_hub2_cs_GPIO_Port, GPO_hub3_cs_GPIO_Port, GPO_hub4_cs_GPIO_Port},
-                     (uint16_t[]){GPO_hub1_cs_Pin, GPO_hub2_cs_Pin, GPO_hub3_cs_Pin, GPO_hub4_cs_Pin},
-                     4);
+    InitEthernetHubs(
+        hub, &hspi3,
+        (GPIO_TypeDef *[]){GPO_hub1_cs_GPIO_Port, GPO_hub2_cs_GPIO_Port,
+                           GPO_hub3_cs_GPIO_Port, GPO_hub4_cs_GPIO_Port},
+        (uint16_t[]){GPO_hub1_cs_Pin, GPO_hub2_cs_Pin, GPO_hub3_cs_Pin,
+                     GPO_hub4_cs_Pin},
+        4);
 
     InitEthernetHubRegisters(hub, 4);
 
@@ -367,149 +365,12 @@ int main(void)
 
     while (1)
     {
-        	  _STR
-
-        // однократная прямая передача сообщений (может быть использованна
-        // вместе с сообщениями передаваемими планировщиком)
-        // HI3220_transmitDirect (&hi, 0, txData, 1);
-        // HAL_Delay(100);
-
-        // uint8_t sss[5] = { 0xA5, 2, 3, 4, 5};
-
-        if (TIMERS_expired(tmrDebug))
-        {
-            // TIMERS_setTimer(&tmrDebug, 100);
-            // TIMERS_disableTimer(&tmrDebug);
-
-            // HAL_GPIO_WritePin(GPO_28Vcam_en_GPIO_Port, GPO_28Vcam_en_Pin,
-            // GPIO_PIN_RESET);
-            //  HAL_GPIO_WritePin(GPO_12V_en_GPIO_Port, GPO_12V_en_Pin,
-            //  GPIO_PIN_RESET);
-
-            //  HAL_GPIO_WritePin(GPO_hub1_cs_GPIO_Port, GPO_hub1_cs_Pin,
-            //  GPIO_PIN_RESET); HAL_GPIO_WritePin(GPO_hub2_cs_GPIO_Port,
-            //  GPO_hub2_cs_Pin, GPIO_PIN_RESET);
-            //  HAL_GPIO_WritePin(GPO_hub3_cs_GPIO_Port, GPO_hub3_cs_Pin,
-            //  GPIO_PIN_RESET); HAL_GPIO_WritePin(GPO_hub4_cs_GPIO_Port,
-            //  GPO_hub4_cs_Pin, GPIO_PIN_RESET);
-
-            // HAL_UART_Transmit(&huart1, uartTestTX1, 4, 100);
-            // HAL_UART_Transmit(&huart2, uartTestTX2, 4, 100);
-            // HAL_UART_Transmit(&huart3, uartTestTX2, 4, 100);
-
-            // printf("blower toggle\n");
-            // HAL_GPIO_TogglePin(GPO_blower_GPIO_Port, GPO_blower_Pin);
-            // HAL_GPIO_WritePin(GPO_28Vcam_en_GPIO_Port, GPO_28Vcam_en_Pin,
-            // GPIO_PIN_RESET);
-
-            // debug ksz9567
-            /*  printf ("-----------------------\n");
-              printf ("sg1 0: %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[0],
-              0x1F0000)); printf ("sg1 1: %X\n",
-              KSZ9567_SPI_SgmiiRegRead(&hub[0], 0x1F0001)); printf ("sg1 4:
-              %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[0], 0x1F0004)); printf ("sg1
-              5: %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[0], 0x1F0005)); printf
-              ("sg1 6: %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[0], 0x1F0006));
-              printf ("sg1 8000: %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[0],
-              0x1F8000)); printf ("sg1 8001: %X\n",
-              KSZ9567_SPI_SgmiiRegRead(&hub[0], 0x1F8001)); printf ("sg1 8002:
-              %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[0], 0x1F8002));
-              //
-
-              printf ("-----------------------\n");
-              printf ("sg2 0: %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[1],
-              0x1F0000)); printf ("sg2 1: %X\n",
-              KSZ9567_SPI_SgmiiRegRead(&hub[1], 0x1F0001)); printf ("sg2 4:
-              %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[1], 0x1F0004)); printf ("sg2
-              5: %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[1], 0x1F0005)); printf
-              ("sg2 6: %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[1], 0x1F0006));
-              printf ("sg2 8000: %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[1],
-              0x1F8000)); printf ("sg2 8001: %X\n",
-              KSZ9567_SPI_SgmiiRegRead(&hub[1], 0x1F8001)); printf ("sg2 8002:
-              %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[1], 0x1F8002));
-
-
-
-              printf ("-----------------------\n");
-              printf ("sg3 0: %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[2],
-              0x1F0000)); printf ("sg3 1: %X\n",
-              KSZ9567_SPI_SgmiiRegRead(&hub[2], 0x1F0001)); printf ("sg3 4:
-              %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[2], 0x1F0004)); printf ("sg3
-              5: %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[2], 0x1F0005)); printf
-              ("sg3 6: %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[2], 0x1F0006));
-              printf ("sg3 8000: %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[2],
-              0x1F8000)); printf ("sg3 8001: %X\n",
-              KSZ9567_SPI_SgmiiRegRead(&hub[2], 0x1F8001)); printf ("sg3 8002:
-              %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[2], 0x1F8002));
-              //
-
-              printf ("-----------------------\n");
-              printf ("sg4 0: %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[3],
-              0x1F0000)); printf ("sg4 1: %X\n",
-              KSZ9567_SPI_SgmiiRegRead(&hub[3], 0x1F0001)); printf ("sg4 4:
-              %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[3], 0x1F0004)); printf ("sg4
-              5: %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[3], 0x1F0005)); printf
-              ("sg4 6: %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[3], 0x1F0006));
-              printf ("sg4 8000: %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[3],
-              0x1F8000)); printf ("sg4 8001: %X\n",
-              KSZ9567_SPI_SgmiiRegRead(&hub[3], 0x1F8001)); printf ("sg4 8002:
-              %X\n", KSZ9567_SPI_SgmiiRegRead(&hub[3], 0x1F8002));
+        
+        /*
+            Макрос _STR служит для генерации короткого импульса на определённом выводе микроконтроллера.
+            Для измерения времени выполнения кода с помощью осциллографа (наверно)
         */
-
-            /*
-                  uint8_t speed;
-                  uint8_t duplex;
-                  uint16_t rd;
-            */
-            // correct control register after speed change:
-            /*    uint8_t speed = (KSZ9567_SPI_SgmiiRegRead(&hub[0], 0x1F8002)
-               >> 2) & 3; uint8_t duplex = (KSZ9567_SPI_SgmiiRegRead(&hub[0],
-               0x1F8002) >> 1) & 1; printf ("speed1: %d, duplex: %d\n", speed,
-               duplex); uint16_t rd = KSZ9567_SPI_SgmiiRegRead(&hub[0],
-               0x1F0000); rd &= 0xDEBF; rd |= (speed & 1) << 13; rd |= (speed &
-               2) << 5; rd |= (duplex & 1) << 8; printf
-               ("sg1 rd: %X\n", rd); KSZ9567_SPI_SgmiiRegWrite(&hub[0],
-               0x1F0000, rd);
-
-
-                // correct control register after speed change:
-                speed = (KSZ9567_SPI_SgmiiRegRead(&hub[1], 0x1F8002) >> 2) & 3;
-                duplex = (KSZ9567_SPI_SgmiiRegRead(&hub[1], 0x1F8002) >> 1) & 1;
-                printf ("speed2: %d, duplex: %d\n", speed, duplex);
-                rd = KSZ9567_SPI_SgmiiRegRead(&hub[1], 0x1F0000);
-                rd &= 0xDEBF;
-                rd |= (speed & 1) << 13;
-                rd |= (speed & 2) << 5;
-                rd |= (duplex & 1) << 8;
-                printf ("sg2 rd: %X\n", rd);
-                KSZ9567_SPI_SgmiiRegWrite(&hub[1], 0x1F0000, rd);
-
-          */
-            /*
-                  // correct control register after speed change:
-                  speed = (KSZ9567_SPI_SgmiiRegRead(&hub[2], 0x1F8002) >> 2) &
-               3; duplex = (KSZ9567_SPI_SgmiiRegRead(&hub[2], 0x1F8002) >> 1) &
-               1; printf ("speed3: %d, duplex: %d\n", speed, duplex); rd =
-               KSZ9567_SPI_SgmiiRegRead(&hub[2], 0x1F0000); rd &= 0xDEBF; rd |=
-               (speed & 1) << 13; rd |= (speed & 2) << 5; rd |= (duplex & 1) <<
-               8; printf ("sg3 rd: %X\n", rd);
-               //   KSZ9567_SPI_SgmiiRegWrite(&hub[2], 0x1F0000, rd);
-
-
-
-                  // correct control register after speed change:
-                  speed = (KSZ9567_SPI_SgmiiRegRead(&hub[3], 0x1F8002) >> 2) &
-               3; duplex = (KSZ9567_SPI_SgmiiRegRead(&hub[3], 0x1F8002) >> 1) &
-               1; printf ("speed4: %d, duplex: %d\n", speed, duplex); rd =
-               KSZ9567_SPI_SgmiiRegRead(&hub[3], 0x1F0000); rd &= 0xDEBF; rd |=
-               (speed & 1) << 13; rd |= (speed & 2) << 5; rd |= (duplex & 1) <<
-               8; printf ("sg4 rd: %X\n", rd);
-                 // KSZ9567_SPI_SgmiiRegWrite(&hub[3], 0x1F0000, rd);
-
-
-
-                 //  */
-        }
+        _STR
 
         // services:
         // terminal 1
@@ -564,9 +425,7 @@ int main(void)
 
         POWER_process();
 
-        //	  _STR_UP
         ARINC429_process();
-        //	  _STR_DWN
 
         // check and reset uart1
         if (huart1.RxState == HAL_UART_STATE_READY)
@@ -592,8 +451,6 @@ int main(void)
 
         // проверка наличия 12В и передергивание 28в и 3в (запаралелено)
         char t = HAL_GPIO_ReadPin(GPI_12v_in_GPIO_Port, GPI_12v_in_Pin);
-        // printf ("xxx: %d\n", HAL_GPIO_ReadPin(GPI_12v_in_GPIO_Port,
-        // GPI_12v_in_Pin));
 
         in12vValue += t;
         in12vCnt++;
@@ -639,38 +496,6 @@ int main(void)
             in12vValue = 0;
         }
 
-        // проверка потребляемой мощности по камерам и формирование состояний
-        // пакета ARINC-429 если потребляемая мощность меньше 2 ватт, то
-        // устанавливаем 1
-        //    if (T_INA226_getPower(&powerSensA[0]) < 2) txPacketARINC429_1[1]
-        //    |= 0x04; else txPacketARINC429_1[1] &= ~0x04; if
-        //    (T_INA226_getPower(&powerSensA[1]) < 2) txPacketARINC429_1[1] |=
-        //    0x08; else txPacketARINC429_1[1] &= ~0x08; if
-        //    (T_INA226_getPower(&powerSensA[2]) < 2) txPacketARINC429_1[1] |=
-        //    0x10; else txPacketARINC429_1[1] &= ~0x10;
-
-        //    ARINC_Word_300.str.label = 0300;
-        //    ARINC_Word_300.str.sdi = 0x03;
-        //    ARINC_Word_300.str.cam1_fault = (T_INA226_getPower(&powerSensA[0])
-        //    < 2)? 1 : 0; ARINC_Word_300.str.cam2_fault =
-        //    (T_INA226_getPower(&powerSensA[1]) < 2)? 1 : 0;
-        //    ARINC_Word_300.str.cam3_fault = (T_INA226_getPower(&powerSensA[2])
-        //    < 2)? 1 : 0; ARINC_Word_300.str.cam4_fault =
-        //    (T_INA226_getPower(&powerSensA[3]) < 2)? 1 : 0;
-        //    ARINC_Word_300.str.cam5_fault = (T_INA226_getPower(&powerSensA[4])
-        //    < 2)? 1 : 0; ARINC_Word_300.str.cam6_fault =
-        //    (T_INA226_getPower(&powerSensA[5]) < 2)? 1 : 0;
-        //	ARINC_Word_300.str.System_Status = System_Status;
-        //	ARINC_Word_300.str.SrvRouter_Status = SrvRouter_Status;
-        //	ARINC_Word_300.str.Storage_Status = Storage_Status;
-        //	ARINC_Word_300.str.matrix = A300_Matrix;
-        //
-
-        /*    if (t1 > 100) {
-
-              t1 = 0;
-            }*/
-
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
@@ -678,18 +503,19 @@ int main(void)
         // Опрос переключателя выбора камеры и перевод в номер выбранной камеры
         sw_pos__ = MCP23008_Read_Reg(&ic_mcp23008, 9) &
                    0x3F;  // старшие два бита MCP23008 жестко сидят на +V
-        // ==============================================
+
         u8_t ch_no;
         for (ch_no = 0; ch_no < CHANNELS_TOTAL; ch_no++)
         {
             if (sw_pos__ & 0x01) break;
             sw_pos__ >>= 1;
         }
-        Channel_No = (ch_no < CHANNELS_TOTAL ? ch_no + 1 : 0);
+
         // Номер камеры передается как от 1-й до 6-й,
         // если камера не выбрана (напр. сломан переключатель) - будет передан 0
         // - признак неисправности
-        // ==============================================
+        Channel_No = (ch_no < CHANNELS_TOTAL ? ch_no + 1 : 0);
+
         SYSTEM_Status.cam_switch_fault =
             (Channel_No ? 0 : 1);  // если свитч неисправен, он будет давать '0'
     }
@@ -792,18 +618,37 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 /* USER CODE END 4 */
 
 /**
+ * @brief Инициализация флэш-памяти W25Q32.
+ *
+ * Выполняет инициализацию флэш-памяти W25Q32 с использованием указанного SPI
+ * интерфейса и GPIO для выбора чипа (chip select).
+ * Эта инициализация должна быть выполнена до инициализации STM32 и логгера,
+ * чтобы обеспечить очистку флэш-памяти.
+ *
+ * @param hspi Указатель на SPI интерфейс (SPI_HandleTypeDef).
+ * @param GPIO_Port Указатель на GPIO порт для выбора чипа.
+ * @param GPIO_Pin Пин GPIO для выбора чипа.
+ */
+static void W25Q32_Flash_Init(SPI_HandleTypeDef *hspi, GPIO_TypeDef *GPIO_Port, uint16_t GPIO_Pin)
+{
+    printf("W25Q32 init...\n");
+    FLASH_W25Q32_init(hspi, GPIO_Port, GPIO_Pin);
+}
+
+/**
  * @brief Инициализация массива Ethernet-хабов.
- * 
- * Эта функция инициализирует каждый элемент массива hub, устанавливая SPI-интерфейс,
- * порт GPIO и пин для выбора чипа (chip select).
- * 
+ *
+ * Эта функция инициализирует каждый элемент массива hub, устанавливая
+ * SPI-интерфейс, порт GPIO и пин для выбора чипа (chip select).
+ *
  * @param hub Массив структур T_KSZ9567S_SPI для инициализации.
  * @param spi Указатель на SPI-интерфейс, используемый всеми хабами.
  * @param ports Массив указателей на GPIO-порты для выбора чипа каждого хаба.
  * @param pins Массив пинов GPIO для выбора чипа каждого хаба.
  * @param count Количество хабов в массиве.
  */
-void InitEthernetHubs(T_KSZ9567S_SPI hub[], SPI_HandleTypeDef *spi, GPIO_TypeDef* ports[], uint16_t pins[], int count)
+void InitEthernetHubs(T_KSZ9567S_SPI hub[], SPI_HandleTypeDef *spi,
+                      GPIO_TypeDef *ports[], uint16_t pins[], int count)
 {
     for (int i = 0; i < count; i++)
     {
@@ -815,10 +660,11 @@ void InitEthernetHubs(T_KSZ9567S_SPI hub[], SPI_HandleTypeDef *spi, GPIO_TypeDef
 
 /**
  * @brief Настройка регистров каждого Ethernet-хаба.
- * 
- * Эта функция выполняет последовательность SPI-записей для настройки внутренних регистров
- * каждого хаба, включая установку задержки, сброс и конфигурацию SGMII.
- * 
+ *
+ * Эта функция выполняет последовательность SPI-записей для настройки внутренних
+ * регистров каждого хаба, включая установку задержки, сброс и конфигурацию
+ * SGMII.
+ *
  * @param hub Массив структур T_KSZ9567S_SPI, представляющих хабы для настройки.
  * @param count Количество хабов в массиве.
  */
@@ -826,9 +672,12 @@ void InitEthernetHubRegisters(T_KSZ9567S_SPI hub[], int count)
 {
     for (int i = 0; i < count; i++)
     {
-        KSZ9567_SPI_RegWriteByte(&hub[i], 0x6301, 0x18);  // set ingress internal delay to 1.5ns
+        KSZ9567_SPI_RegWriteByte(&hub[i], 0x6301,
+                                 0x18);  // set ingress internal delay to 1.5ns
         KSZ9567_SPI_SgmiiRegWrite(&hub[i], 0x1F0000, 0x8140);  // reset
-        KSZ9567_SPI_SgmiiRegWrite(&hub[i], 0x1F8001, 0x14);  // (SGMII) set to MAC device, set SGMII Link Status to 1
+        KSZ9567_SPI_SgmiiRegWrite(
+            &hub[i], 0x1F8001,
+            0x14);  // (SGMII) set to MAC device, set SGMII Link Status to 1
         KSZ9567_SPI_SgmiiRegWrite(&hub[i], 0x1F0004, 0x20);
     }
 }
