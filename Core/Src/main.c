@@ -176,6 +176,11 @@ extern union W300_t ARINC_Word_300;
 void SystemClock_Config(void);
 
 void Init_Peripherals(void);
+
+static void W25Q32_Flash_Init(SPI_HandleTypeDef *hspi, GPIO_TypeDef *GPIO_Port, uint16_t GPIO_Pin);
+
+/* USER CODE END 4 */
+
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -183,22 +188,6 @@ void Init_Peripherals(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-void Init_Peripherals(void)
-{
-    MX_GPIO_Init();
-    MX_DMA_Init();
-    MX_SPI1_Init();
-    MX_SPI3_Init();
-    MX_I2C1_Init();
-    MX_SPI2_Init();
-    MX_ADC1_Init();
-    MX_RTC_Init();
-    MX_I2C4_Init();
-    MX_USART3_UART_Init();
-    MX_USART1_UART_Init();
-    MX_USART2_UART_Init();
-    MX_TIM12_Init();
-}
 
 /**
  * @brief Функция отладочного вывода через SWD (Serial Wire Debug) интерфейс
@@ -225,7 +214,7 @@ int _write(int file, char *ptr, int len)
 /* USER CODE END 0 */
 
 /**
- * @brief  The application entry point.
+ * @brief  Main
  * @retval int
  */
 int main(void)
@@ -617,6 +606,39 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 /* USER CODE END 4 */
 
+
+/**
+ * @brief Инициализация всех необходимых периферийных устройств.
+ *
+ * Функция выполняет последовательную инициализацию следующих периферийных модулей:
+ * - GPIO (ввод/вывод общего назначения)
+ * - DMA (прямой доступ к памяти)
+ * - SPI1, SPI2, SPI3 (последовательный периферийный интерфейс)
+ * - I2C1, I2C4 (интерфейс межинтегральной связи)
+ * - ADC1 (аналогово-цифровой преобразователь)
+ * - RTC (часы реального времени)
+ * - USART1, USART2, USART3 (универсальный асинхронный приёмопередатчик)
+ * - TIM12 (таймер)
+ *
+ * Данная функция должна быть вызвана для настройки аппаратных модулей перед их использованием.
+ */
+void Init_Peripherals(void)
+{
+    MX_GPIO_Init();
+    MX_DMA_Init();
+    MX_SPI1_Init();
+    MX_SPI3_Init();
+    MX_I2C1_Init();
+    MX_SPI2_Init();
+    MX_ADC1_Init();
+    MX_RTC_Init();
+    MX_I2C4_Init();
+    MX_USART3_UART_Init();
+    MX_USART1_UART_Init();
+    MX_USART2_UART_Init();
+    MX_TIM12_Init();
+}
+
 /**
  * @brief Инициализация флэш-памяти W25Q32.
  *
@@ -683,7 +705,7 @@ void InitEthernetHubRegisters(T_KSZ9567S_SPI hub[], int count)
 }
 
 /**
- * @brief  This function is executed in case of error occurrence.
+ * @brief  Обработка ошибок
  * @retval None
  */
 void Error_Handler(void)
