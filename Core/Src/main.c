@@ -162,12 +162,6 @@ enum A300_Matrix_e A300_Matrix;
  */
 Status_t SYSTEM_Status;
 
-/**
- * @brief Счётчики и значения для 12В питания.
- */
-char in12vCnt;
-char in12vValue;
-char in12vTrigger;
 
 /**
  * @brief Внешнее объединение ARINC_Word_300.
@@ -185,6 +179,8 @@ static void W25Q32_Flash_Init(SPI_HandleTypeDef *hspi, GPIO_TypeDef *GPIO_Port, 
 
 void SetHubCSPins(GPIO_PinState state);
 
+void Check12VPower(void);
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN PFP */
@@ -193,7 +189,6 @@ void SetHubCSPins(GPIO_PinState state);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
 
 /**
  * @brief Функция отладочного вывода через SWD (Serial Wire Debug) интерфейс
@@ -278,7 +273,7 @@ int main(void)
 
     HAL_Delay(200);
 
-    // init ethernet hubs
+    // Инициализация ethernet hubs
     T_KSZ9567S_SPI hub[HUBS_CNT];
 
     InitEthernetHubs(
@@ -293,7 +288,6 @@ int main(void)
 
     // включение вентилятора
     HAL_TIM_PWM_Start(&htim12, TIM_CHANNEL_2);
-    // HAL_GPIO_WritePin(GPO_blower_GPIO_Port, GPO_blower_Pin, GPIO_PIN_SET);
 
     // включение блока питания компьютера
     // после настройки SGMII
@@ -314,9 +308,10 @@ int main(void)
     HAL_UART_Receive_IT(&huart2, &uart2Recv, 1);
     HAL_UART_Receive_IT(&huart3, &uart3Recv, 1);
 
-    in12vCnt = 0;
-    in12vValue = 0;
-    in12vTrigger = 0;
+    // Удалены инициализации глобальных переменных, так как они теперь локальные статические в Check12VPower
+    // in12vCnt = 0;
+    // in12vValue = 0;
+    // in12vTrigger = 0;
 
     htim12.Instance->CCR2 = 100;  // включение вентилятора на 100%, шим был в
                                   // качестве эксперимента, оказалось не удачно
@@ -438,51 +433,7 @@ int main(void)
         }  // */
 
         // проверка наличия 12В и передергивание 28в и 3в (запаралелено)
-        char t = HAL_GPIO_ReadPin(GPI_12v_in_GPIO_Port, GPI_12v_in_Pin);
-
-        in12vValue += t;
-        in12vCnt++;
-
-        if (in12vCnt >= 30)
-        {  // 30-ти кратная проверка, для фильтрации единичных импульсов
-            if (in12vValue == 0)
-            {
-                if (in12vTrigger == 0)
-                {
-                    in12vTrigger = 1;
-                    HAL_GPIO_WritePin(GPO_28Vcam_en_GPIO_Port,
-                                      GPO_28Vcam_en_Pin, GPIO_PIN_RESET);
-                    HAL_GPIO_WritePin(GPO_hub1_cs_GPIO_Port, GPO_hub1_cs_Pin,
-                                      GPIO_PIN_RESET);
-                    HAL_GPIO_WritePin(GPO_hub2_cs_GPIO_Port, GPO_hub2_cs_Pin,
-                                      GPIO_PIN_RESET);
-                    HAL_GPIO_WritePin(GPO_hub3_cs_GPIO_Port, GPO_hub3_cs_Pin,
-                                      GPIO_PIN_RESET);
-                    HAL_GPIO_WritePin(GPO_hub4_cs_GPIO_Port, GPO_hub4_cs_Pin,
-                                      GPIO_PIN_RESET);
-                }
-            }
-            else if (in12vValue == 30)
-            {
-                if (in12vTrigger == 1)
-                {
-                    in12vTrigger = 0;
-                    HAL_GPIO_WritePin(GPO_28Vcam_en_GPIO_Port,
-                                      GPO_28Vcam_en_Pin, GPIO_PIN_SET);
-                    HAL_GPIO_WritePin(GPO_hub1_cs_GPIO_Port, GPO_hub1_cs_Pin,
-                                      GPIO_PIN_SET);
-                    HAL_GPIO_WritePin(GPO_hub2_cs_GPIO_Port, GPO_hub2_cs_Pin,
-                                      GPIO_PIN_SET);
-                    HAL_GPIO_WritePin(GPO_hub3_cs_GPIO_Port, GPO_hub3_cs_Pin,
-                                      GPIO_PIN_SET);
-                    HAL_GPIO_WritePin(GPO_hub4_cs_GPIO_Port, GPO_hub4_cs_Pin,
-                                      GPIO_PIN_SET);
-                }
-            }
-
-            in12vCnt = 0;
-            in12vValue = 0;
-        }
+        Check12VPower();
 
         /* USER CODE END WHILE */
 
@@ -604,6 +555,72 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 }
 
 /* USER CODE END 4 */
+/**
+ * @brief Проверка наличия 12В питания с фильтрацией помех.
+ *
+ * Функция выполняет 30-кратное считывание состояния входа 12В питания,
+ * суммирует значения для фильтрации единичных импульсов и управляет
+ * состоянием питания камер и Ethernet-хабов в зависимости от результата.
+ *
+ * Использует статические локальные переменные для сохранения состояния между вызовами.
+ *
+ * При отсутствии питания (in12vValue == 0) и если питание было включено,
+ * функция отключает питание камер и хабов.
+ * При наличии питания (in12vValue == 30) и если питание было отключено,
+ * функция включает питание камер и хабов.
+ */
+void Check12VPower(void)
+{
+    static char in12vCnt = 0;
+    static char in12vValue = 0;
+    static char in12vTrigger = 0;
+
+    char t = HAL_GPIO_ReadPin(GPI_12v_in_GPIO_Port, GPI_12v_in_Pin);
+
+    in12vValue += t;
+    in12vCnt++;
+
+    if (in12vCnt >= 30)
+    {  // 30-ти кратная проверка, для фильтрации единичных импульсов
+        if (in12vValue == 0)
+        {
+            if (in12vTrigger == 0)
+            {
+                in12vTrigger = 1;
+                HAL_GPIO_WritePin(GPO_28Vcam_en_GPIO_Port, GPO_28Vcam_en_Pin,
+                                  GPIO_PIN_RESET);
+                HAL_GPIO_WritePin(GPO_hub1_cs_GPIO_Port, GPO_hub1_cs_Pin,
+                                  GPIO_PIN_RESET);
+                HAL_GPIO_WritePin(GPO_hub2_cs_GPIO_Port, GPO_hub2_cs_Pin,
+                                  GPIO_PIN_RESET);
+                HAL_GPIO_WritePin(GPO_hub3_cs_GPIO_Port, GPO_hub3_cs_Pin,
+                                  GPIO_PIN_RESET);
+                HAL_GPIO_WritePin(GPO_hub4_cs_GPIO_Port, GPO_hub4_cs_Pin,
+                                  GPIO_PIN_RESET);
+            }
+        }
+        else if (in12vValue == 30)
+        {
+            if (in12vTrigger == 1)
+            {
+                in12vTrigger = 0;
+                HAL_GPIO_WritePin(GPO_28Vcam_en_GPIO_Port, GPO_28Vcam_en_Pin,
+                                  GPIO_PIN_SET);
+                HAL_GPIO_WritePin(GPO_hub1_cs_GPIO_Port, GPO_hub1_cs_Pin,
+                                  GPIO_PIN_SET);
+                HAL_GPIO_WritePin(GPO_hub2_cs_GPIO_Port, GPO_hub2_cs_Pin,
+                                  GPIO_PIN_SET);
+                HAL_GPIO_WritePin(GPO_hub3_cs_GPIO_Port, GPO_hub3_cs_Pin,
+                                  GPIO_PIN_SET);
+                HAL_GPIO_WritePin(GPO_hub4_cs_GPIO_Port, GPO_hub4_cs_Pin,
+                                  GPIO_PIN_SET);
+            }
+        }
+
+        in12vCnt = 0;
+        in12vValue = 0;
+    }
+}
 
 /**
  * @brief Устанавливает состояние всех пинов выбора чипа Ethernet-хабов.
