@@ -1,176 +1,59 @@
-/* USER CODE BEGIN Header */
-/**
- ******************************************************************************
- * @file           : main.c
- * @brief          : Main program body
- ******************************************************************************
- * @attention
- *
- * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
- * All rights reserved.</center></h2>
- *
- * This software component is licensed by ST under BSD 3-Clause license,
- * the "License"; You may not use this file except in compliance with the
- * License. You may obtain a copy of the License at:
- *                        opensource.org/licenses/BSD-3-Clause
- *
- ******************************************************************************
- */
-/* USER CODE END Header */
-/* Includes ------------------------------------------------------------------*/
+/// @file    main.c
+/// @author  Тузиков Г.А. tuzikovga@raitibor.ru, zhuchenkovao, Башмаков Р.А. bashmakovra@raitibor.ru
+/// @brief   ВПО для STM32 СВР-Маршрутизатора
+
 #include "main.h"
 
-#include "adc.h"
-#include "dma.h"
-#include "gpio.h"
-#include "i2c.h"
-#include "mcp23008.h"
-#include "rtc.h"
-#include "spi.h"
-#include "tim.h"
-#include "usart.h"
-
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
-
-#include <stdio.h>
-
-#include "KSZ9567S_spi.h"
-#include "arinc429.h"
-#include "flash_W25Q32.h"
-#include "powercontrol.h"
-#include "stm32_status.h"
-#include "terminal.h"
-
-//#include "DBG.h" //DBG
-
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-/**
- * @def MAIN_SYSTEM_START_DELAY_MS
- * @brief Задержка старта основной системы в миллисекундах.
- */
-#define MAIN_SYSTEM_START_DELAY_MS 500
-
-
-#define HUBS_CNT 4
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
-
-/* USER CODE BEGIN PV */
-
-/**
- * @brief Версия и дата сборки прошивки.
- */
+/// @brief   Версия и дата сборки прошивки
 const char strVersionDT[] = "IL114  22.07.22  20:38";
 
-/**
- * @brief Номер выбранного канала (камеры).
- */
+/// @brief   Номер выбранного канала (камеры).
 u8_t Channel_No = 0;
 
-/**
- * @brief Таймер отладки.
- */
+/// @brief   Таймер отладки
 TTimer tmrDebug;
 
-/**
- * @brief Терминал для отладочного вывода.
- */
+/// @brief   Терминал для отладочного вывода
 TTerminal termDbg;
 
-/**
- * @brief Терминал для связи с ПК.
- */
+/// @brief   Терминал для связи с ПК
 TTerminal termPc2MCU;
 
-/**
- * @def UART2_TX_BUFFER_SIZE
- * @brief Размер буфера передачи UART2 для DMA.
- */
-#define UART2_TX_BUFFER_SIZE 200
-
-/**
- * @brief Буфер передачи UART2 для DMA.
- */
+/// @brief   Буфер передачи UART2 для DMA
 char uart2TxBuffer[UART2_TX_BUFFER_SIZE];
 
-/**
- * @def UART1_TX_BUFFER_SIZE
- * @brief Размер буфера передачи UART1 для DMA.
- */
-#define UART1_TX_BUFFER_SIZE 200
-
-/**
- * @brief Буфер передачи UART1 для DMA.
- */
+/// @brief   Буфер передачи UART1 для DMA
 char uart1TxBuffer[UART1_TX_BUFFER_SIZE];
 
-/**
- * @brief Переменные приёма UART.
- */
+/// @brief   Переменные приёма UART
 uint8_t uart1Recv;
 uint8_t uart2Recv;
 uint8_t uart3Recv;
 
-/**
- * @brief Состояние приёма UART3.
- */
+/// @brief   Состояние приёма UART3
 uint8_t uart3State = 0;
 
-/**
- * @brief Буфер приёма UART3.
- */
+/// @brief   Буфер приёма UART3
 char uart3RecvBuffer[10];
 
-/**
- * @brief Индекс буфера приёма UART3.
- */
+/// @brief   Индекс буфера приёма UART3
 uint8_t uart3RecvBufferIndex = 0;
 
-/**
- * @brief Флаг нового пакета UART3.
- */
+/// @brief   Флаг нового пакета UART3
 uint8_t uart3NewPacket = 0;
 
-/**
- * @brief Переключатель камеры.
- */
+/// @brief   Переключатель камеры
 u8_t CamSwitch;
 
-/**
- * @brief Матрица A300.
- */
+/// @brief   Матрица A300
 enum A300_Matrix_e A300_Matrix;
 
-/**
- * @brief Структура статуса системы.
- */
+/// @brief   Структура статуса системы
 Status_t SYSTEM_Status;
 
-
-/**
- * @brief Внешнее объединение ARINC_Word_300.
- */
+/// @brief   Внешнее объединение ARINC_Word_300
 extern union W300_t ARINC_Word_300;
 
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 
 void Init_Peripherals(void);
@@ -181,39 +64,6 @@ void SetHubCSPins(GPIO_PinState state);
 
 void Check12VPower(void);
 
-/* USER CODE END 4 */
-
-/* USER CODE BEGIN PFP */
-
-/* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
-
-/**
- * @brief Функция отладочного вывода через SWD (Serial Wire Debug) интерфейс
- * STM32. Используется для перенаправления вывода функций printf и puts.
- * @param file Не используется, параметр для совместимости с системным вызовом
- * write.
- * @param ptr Указатель на буфер с данными для вывода.
- * @param len Количество байт для вывода из буфера.
- * @retval Количество успешно выведенных байт.
- *
- * Данная функция посимвольно отправляет данные через ITM_SendChar, что
- * позволяет выводить отладочную информацию в отладчик, поддерживающий SWD.
- */
-int _write(int file, char *ptr, int len)
-{
-    /* Implement your write code here, this is used by puts and printf for
-     * example
-     */
-    int i = 0;
-    for (i = 0; i < len; i++) ITM_SendChar((*ptr++));
-    return len;
-}
-
-/* USER CODE END 0 */
-
 /**
  * @brief  Main
  * @retval int
@@ -221,34 +71,14 @@ int _write(int file, char *ptr, int len)
 
 int main(void)
 {
-    /* USER CODE BEGIN 1 */
 
     u8_t sw_pos__;
 
-    /* USER CODE END 1 */
-
-    /* MCU
-     * Configuration--------------------------------------------------------*/
-
-    /* Reset of all peripherals, Initializes the Flash interface and the
-     * Systick.
-     */
     HAL_Init();
 
-    /* USER CODE BEGIN Init */
-
-    /* USER CODE END Init */
-
-    /* Configure the system clock */
     SystemClock_Config();
 
-    /* USER CODE BEGIN SysInit */
-
-    /* USER CODE END SysInit */
-
-    /* Initialize all configured peripherals */
     Init_Peripherals();
-    /* USER CODE BEGIN 2 */
 
     TERMINAL_init(&termDbg);
     TERMINAL_init(&termPc2MCU);
@@ -299,19 +129,12 @@ int main(void)
 
     ARINC429_init(&hspi2);
 
-    /* USER CODE END 2 */
-
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
 
     HAL_UART_Receive_IT(&huart1, &uart1Recv, 1);
     HAL_UART_Receive_IT(&huart2, &uart2Recv, 1);
     HAL_UART_Receive_IT(&huart3, &uart3Recv, 1);
-
-    // Удалены инициализации глобальных переменных, так как они теперь локальные статические в Check12VPower
-    // in12vCnt = 0;
-    // in12vValue = 0;
-    // in12vTrigger = 0;
 
     htim12.Instance->CCR2 = 100;  // включение вентилятора на 100%, шим был в
                                   // качестве эксперимента, оказалось не удачно
@@ -321,7 +144,6 @@ int main(void)
 
     MCP23008_init();
 
-    // ===== STATUSES: Set INITIAL STATE =====
     A300_Matrix = AMX_NORMAL_OPERATION;
     //  System_Status = 		SYS_NORMAL_OPERATION;
     //  SrvRouter_Status = 	SRS_NORMAL_OPERATION;
@@ -435,9 +257,6 @@ int main(void)
         // проверка наличия 12В и передергивание 28в и 3в (запаралелено)
         Check12VPower();
 
-        /* USER CODE END WHILE */
-
-        /* USER CODE BEGIN 3 */
 
         // Опрос переключателя выбора камеры и перевод в номер выбранной камеры
         sw_pos__ = MCP23008_Read_Reg(&ic_mcp23008, 9) &
@@ -458,7 +277,21 @@ int main(void)
         SYSTEM_Status.cam_switch_fault =
             (Channel_No ? 0 : 1);  // если свитч неисправен, он будет давать '0'
     }
-    /* USER CODE END 3 */
+}// main_end
+
+
+/// @brief   Функция отладочного вывода через SWD (Serial Wire Debug) интерфейс
+///          STM32. 
+/// @details Используется для перенаправления вывода функций printf и puts
+/// @param   file Не используется, параметр для совместимости с системным вызовом write
+/// @param   ptr Указатель на буфер с данными для вывода
+/// @param   len Количество байт для вывода из буфера
+/// @retval  Количество успешно выведенных байт.
+int _write(int file, char *ptr, int len)
+{
+    int i = 0;
+    for (i = 0; i < len; i++) ITM_SendChar((*ptr++));
+    return len;
 }
 
 /**
@@ -512,9 +345,7 @@ void SystemClock_Config(void)
     }
 }
 
-/* USER CODE BEGIN 4 */
 
-//====================================================================
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (huart == &huart1)
@@ -554,7 +385,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     }
 }
 
-/* USER CODE END 4 */
 /**
  * @brief Проверка наличия 12В питания с фильтрацией помех.
  *
@@ -743,14 +573,10 @@ void InitEthernetHubRegisters(T_KSZ9567S_SPI hub[], int count)
  */
 void Error_Handler(void)
 {
-    /* USER CODE BEGIN Error_Handler_Debug */
-    /* User can add his own implementation to report the HAL error return state
-     */
 
     static u32_t Errs_Qty = 0;
 
     Errs_Qty++;
-    /* USER CODE END Error_Handler_Debug */
 }
 
 #ifdef USE_FULL_ASSERT

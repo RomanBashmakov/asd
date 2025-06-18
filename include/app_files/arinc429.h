@@ -10,7 +10,6 @@
 
 #define A429_L0300_SEND_PERIOD	500
 
-
 #include "stm32f7xx_hal.h"
 
 #include "Hi3220_lib.h"
@@ -58,7 +57,6 @@ extern T_INA226 powerSensA[];
 extern T_INA226 powerSensB[];
 
 typedef struct {
-
   // arinc protocol data
   // 1
   char FORMAT1; //(7 бит)
@@ -135,10 +133,6 @@ typedef struct {
   char OK_BTN_FO; // (1 бит)
   char OK_JAMMED_FO; // (1 бит)
   char LWR_AREA_BTN_FO; // (1 бит)
-
-
-
-
 } T_ARINC429Control;
 
 
@@ -278,34 +272,23 @@ union W302_t {
 /*------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-
-
 extern T_ARINC429Control           arinc429Control;
 extern T_ARINC429ControlDateTime   arinc429DT;
 //extern char  pcCtrlConnected;
 //extern char  pcDTConnected;
 
-
 extern uint8_t txPacketARINC429_1[];
 extern uint8_t txPacketARINC429_2[];
 extern uint8_t txPacketARINC429_3[];
 
-
-
 void ARINC429_init(SPI_HandleTypeDef *hspi);
 void ARINC429_process();
-
 
 void ARINC429_parseMessageCh1(char *data);
 void ARINC429_parseMessageCh2(char *data);
 
-
 void ARINC429_Proto_InputPacket(char *packet, char size, char *out, char *outSize);
 void ARINC429_Proto_buildUartPacketControl(char *packet);
 void ARINC429_Proto_buildUartPacketDT(char *packet);
-
-
-
-
 
 #endif /* INC_APP_FILES_ARINC429_H_ */

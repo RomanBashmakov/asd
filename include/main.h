@@ -1,25 +1,4 @@
-/* USER CODE BEGIN Header */
-/**
-  ******************************************************************************
-  * @file           : main.h
-  * @brief          : Header for main.c file.
-  *                   This file contains the common defines of the application.
-  ******************************************************************************
-  * @attention
-  *
-  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
-  * All rights reserved.</center></h2>
-  *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
-  *
-  ******************************************************************************
-  */
-/* USER CODE END Header */
 
-/* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef __MAIN_H
 #define __MAIN_H
 
@@ -27,21 +6,38 @@
 extern "C" {
 #endif
 
-/* Includes ------------------------------------------------------------------*/
 #include "stm32f7xx_hal.h"
 
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
+#include "adc.h"
+#include "dma.h"
+#include "gpio.h"
+#include "i2c.h"
+#include "mcp23008.h"
+#include "rtc.h"
+#include "spi.h"
+#include "tim.h"
+#include "usart.h"
 
-/* USER CODE END Includes */
+#include <stdio.h>
 
-/* Exported types ------------------------------------------------------------*/
-/* USER CODE BEGIN ET */
+#include "KSZ9567S_spi.h"
+#include "arinc429.h"
+#include "flash_W25Q32.h"
+#include "powercontrol.h"
+#include "stm32_status.h"
+#include "terminal.h"
 
-/* USER CODE END ET */
+/// @brief   Задержка старта основной системы в миллисекундах.
+#define MAIN_SYSTEM_START_DELAY_MS 500
 
-/* Exported constants --------------------------------------------------------*/
-/* USER CODE BEGIN EC */
+/// @brief   Количество хабов
+#define HUBS_CNT 4
+
+/// @brief   Размер буфера передачи UART2 для DMA
+#define UART2_TX_BUFFER_SIZE 200
+
+/// @brief   Размер буфера передачи UART1 для DMA
+#define UART1_TX_BUFFER_SIZE 200
 
 #define u8_t  uint8_t
 #define u16_t uint16_t
@@ -55,21 +51,9 @@ extern const char strVersionDT[];
 
 extern u8_t Channel_No;
 
-/* USER CODE END EC */
-
-/* Exported macro ------------------------------------------------------------*/
-/* USER CODE BEGIN EM */
-
-/* USER CODE END EM */
-
-/* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
-/* USER CODE BEGIN EFP */
 
-/* USER CODE END EFP */
-
-/* Private defines -----------------------------------------------------------*/
 #define GPO_12V_en_Pin GPIO_PIN_2
 #define GPO_12V_en_GPIO_Port GPIOE
 #define GPIO_aI2C_SDA_Pin GPIO_PIN_5
@@ -189,9 +173,6 @@ typedef struct {
 	bool 					cam_switch_fault;
 } Status_t;
 
-/* USER CODE BEGIN Private defines */
-
-/* USER CODE END Private defines */
 
 #ifdef __cplusplus
 }
