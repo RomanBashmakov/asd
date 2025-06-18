@@ -54,14 +54,19 @@ Status_t SYSTEM_Status;
 /// @brief   Внешнее объединение ARINC_Word_300
 extern union W300_t ARINC_Word_300;
 
+/// @brief   Тактирование
 void SystemClock_Config(void);
 
+/// @brief   Инициализация встроеной "периферии".
 void Init_Peripherals(void);
 
+/// @brief   Инициализация флэш-памяти W25Q32.
 static void W25Q32_Flash_Init(SPI_HandleTypeDef *hspi, GPIO_TypeDef *GPIO_Port, uint16_t GPIO_Pin);
 
+/// @brief   Устанавливает состояние всех пинов выбора чипа Ethernet-хабов.
 void SetHubCSPins(GPIO_PinState state);
 
+/// @brief   Проверка наличия 12В питания с фильтрацией помех.
 void Check12VPower(void);
 
 /**
@@ -72,6 +77,7 @@ void Check12VPower(void);
 int main(void)
 {
 
+    /// @brief   позиции переключателя
     u8_t sw_pos__;
 
     HAL_Init();
@@ -85,11 +91,8 @@ int main(void)
 
     TIMERS_setTimer(&tmrDebug, 30000);
 
-    printf("init \n");
-
     W25Q32_Flash_Init(&hspi1, GPO_nvm_ncs_GPIO_Port, GPO_nvm_ncs_Pin);
 
-    printf("STM32 status init...\n");
     STM32_init();  // инициализация стм32 после флеш и до инициализации лога !!!
                    // т.к. здесь может произойти очистка флэш-памяти
 
@@ -129,44 +132,14 @@ int main(void)
 
     ARINC429_init(&hspi2);
 
-    /* Infinite loop */
-    /* USER CODE BEGIN WHILE */
-
     HAL_UART_Receive_IT(&huart1, &uart1Recv, 1);
     HAL_UART_Receive_IT(&huart2, &uart2Recv, 1);
     HAL_UART_Receive_IT(&huart3, &uart3Recv, 1);
 
-    htim12.Instance->CCR2 = 100;  // включение вентилятора на 100%, шим был в
-                                  // качестве эксперимента, оказалось не удачно
+    // включение вентилятора на 100%
+    htim12.Instance->CCR2 = 100;
 
-    //==================================================================================//
-    extern MCP23008_t ic_mcp23008;
-
-    MCP23008_init();
-
-    A300_Matrix = AMX_NORMAL_OPERATION;
-    //  System_Status = 		SYS_NORMAL_OPERATION;
-    //  SrvRouter_Status = 	SRS_NORMAL_OPERATION;
-    //  Storage_Status = 		STS_NORMAL_OPERATION;
-
-    //  extern Status_t Status;
-
-    SYSTEM_Status.system_stat = SYS_FAULT;
-    //  SYSTEM_Status.srvrouter = SRS_NORMAL_OPERATION;
-    //  SYSTEM_Status.storage = 	STS_NORMAL_OPERATION;
-    SYSTEM_Status.srvrouter_stat = 1;
-    //  SYSTEM_Status.storage_stat 	= SYS_NORMAL_OPERATION /* когда
-    //  сервер будет присылать его реальный статус поставить здесь SYS_FAULT*/;
-    SYSTEM_Status.storage_stat = 1;
-    SYSTEM_Status.XAE21_fault = true;
-    SYSTEM_Status.cam_switch_fault = true;
-
-    arinc429Control.FORMAT1 = BASE_FORMAT1;
-
-    //  npkts = 0;//DBG
-    //  DBG_init_HAL();//DBG
-
-    //==================================================================================//
+    System_Init();
 
     while (1)
     {
@@ -280,6 +253,49 @@ int main(void)
 }// main_end
 
 
+
+void System_Init(void)
+{
+    // Внешнее объявление структуры MCP23008 для работы с устройством
+    extern MCP23008_t ic_mcp23008;
+
+    // Инициализация MCP23008
+    MCP23008_init();
+
+    // Установка матрицы A300 в нормальный режим работы
+    A300_Matrix = AMX_NORMAL_OPERATION;
+    //  System_Status = 		SYS_NORMAL_OPERATION;
+    //  SrvRouter_Status = 	SRS_NORMAL_OPERATION;
+    //  Storage_Status = 		STS_NORMAL_OPERATION;
+
+    //  extern Status_t Status;
+
+    // Установка системного статуса в состояние ошибки (SYS_FAULT)
+    SYSTEM_Status.system_stat = SYS_FAULT;
+    //  SYSTEM_Status.srvrouter = SRS_NORMAL_OPERATION;
+    //  SYSTEM_Status.storage = 	STS_NORMAL_OPERATION;
+
+    // Установка статуса маршрутизатора сервиса в 1 (возможно, индикатор ошибки)
+    SYSTEM_Status.srvrouter_stat = 1;
+    //  SYSTEM_Status.storage_stat 	= SYS_NORMAL_OPERATION /* когда
+    //  сервер будет присылать его реальный статус поставить здесь SYS_FAULT*/;
+
+    // Установка статуса хранилища в 1 (возможно, индикатор ошибки)
+    SYSTEM_Status.storage_stat = 1;
+
+    // Установка флага ошибки XAE21
+    SYSTEM_Status.XAE21_fault = true;
+
+    // Установка флага ошибки переключателя камеры
+    SYSTEM_Status.cam_switch_fault = true;
+
+    // Установка формата ARINC429 в базовый формат
+    arinc429Control.FORMAT1 = BASE_FORMAT1;
+
+    //  npkts = 0;//DBG
+    //  DBG_init_HAL();//DBG
+}
+
 /// @brief   Функция отладочного вывода через SWD (Serial Wire Debug) интерфейс
 ///          STM32. 
 /// @details Используется для перенаправления вывода функций printf и puts
@@ -294,10 +310,8 @@ int _write(int file, char *ptr, int len)
     return len;
 }
 
-/**
- * @brief System Clock Configuration
- * @retval None
- */
+/// @brief   Тактирование
+/// @retval  None
 void SystemClock_Config(void)
 {
     RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -385,20 +399,16 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     }
 }
 
-/**
- * @brief Проверка наличия 12В питания с фильтрацией помех.
- *
- * Функция выполняет 30-кратное считывание состояния входа 12В питания,
- * суммирует значения для фильтрации единичных импульсов и управляет
- * состоянием питания камер и Ethernet-хабов в зависимости от результата.
- *
- * Использует статические локальные переменные для сохранения состояния между вызовами.
- *
- * При отсутствии питания (in12vValue == 0) и если питание было включено,
- * функция отключает питание камер и хабов.
- * При наличии питания (in12vValue == 30) и если питание было отключено,
- * функция включает питание камер и хабов.
- */
+/// @brief   Проверка наличия 12В питания с фильтрацией помех.
+/// @details Функция выполняет 30-кратное считывание состояния входа 12В питания,
+///          суммирует значения для фильтрации единичных импульсов и управляет
+///          состоянием питания камер и Ethernet-хабов в зависимости от результата.
+///          Использует статические локальные переменные для сохранения состояния между вызовами.
+///          При отсутствии питания (in12vValue == 0) и если питание было включено,
+///          функция отключает питание камер и хабов.
+///          При наличии питания (in12vValue == 30) и если питание было отключено,
+///          функция включает питание камер и хабов.
+/// @retval  None
 void Check12VPower(void)
 {
     static char in12vCnt = 0;
@@ -452,39 +462,32 @@ void Check12VPower(void)
     }
 }
 
-/**
- * @brief Устанавливает состояние всех пинов выбора чипа Ethernet-хабов.
- *
- * Эта функция упрощает управление состоянием пинов выбора чипа (chip select)
- * для всех четырёх Ethernet-хабов, объединяя повторяющиеся вызовы HAL_GPIO_WritePin
- * в одном месте.
- *
- * @param state Желаемое состояние пинов: GPIO_PIN_SET или GPIO_PIN_RESET.
- */
+/// @brief   Устанавливает состояние всех пинов выбора чипа Ethernet-хабов.
+/// @details Эта функция упрощает управление состоянием пинов выбора чипа (chip select)
+///          для всех четырёх Ethernet-хабов, объединяя повторяющиеся вызовы HAL_GPIO_WritePin
+///          в одном месте.
+/// @param   state Желаемое состояние пинов: GPIO_PIN_SET или GPIO_PIN_RESET.
+/// @retval  None
 void SetHubCSPins(GPIO_PinState state)
 {
-    // Установка состояния всех пинов выбора чипа Ethernet-хабов
     HAL_GPIO_WritePin(GPO_hub1_cs_GPIO_Port, GPO_hub1_cs_Pin, state);
     HAL_GPIO_WritePin(GPO_hub2_cs_GPIO_Port, GPO_hub2_cs_Pin, state);
     HAL_GPIO_WritePin(GPO_hub3_cs_GPIO_Port, GPO_hub3_cs_Pin, state);
     HAL_GPIO_WritePin(GPO_hub4_cs_GPIO_Port, GPO_hub4_cs_Pin, state);
 }
 
-/**
- * @brief Инициализация всех необходимых периферийных устройств.
- *
- * Функция выполняет последовательную инициализацию следующих периферийных модулей:
- * - GPIO (ввод/вывод общего назначения)
- * - DMA (прямой доступ к памяти)
- * - SPI1, SPI2, SPI3 (последовательный периферийный интерфейс)
- * - I2C1, I2C4 (интерфейс межинтегральной связи)
- * - ADC1 (аналогово-цифровой преобразователь)
- * - RTC (часы реального времени)
- * - USART1, USART2, USART3 (универсальный асинхронный приёмопередатчик)
- * - TIM12 (таймер)
- *
- * Данная функция должна быть вызвана для настройки аппаратных модулей перед их использованием.
- */
+/// @brief   Инициализация встроеной "периферии".
+/// @details Функция выполняет последовательную инициализацию следующих периферийных модулей:
+///          - GPIO (ввод/вывод общего назначения)
+///          - DMA (прямой доступ к памяти)
+///          - SPI1, SPI2, SPI3 (последовательный периферийный интерфейс)
+///          - I2C1, I2C4 (интерфейс межинтегральной связи)
+///          - ADC1 (аналогово-цифровой преобразователь)
+///          - RTC (часы реального времени)
+///          - USART1, USART2, USART3 (универсальный асинхронный приёмопередатчик)
+///          - TIM12 (таймер)
+///          Данная функция должна быть вызвана для настройки аппаратных модулей перед их использованием.
+/// @retval  None
 void Init_Peripherals(void)
 {
     MX_GPIO_Init();
@@ -502,36 +505,30 @@ void Init_Peripherals(void)
     MX_TIM12_Init();
 }
 
-/**
- * @brief Инициализация флэш-памяти W25Q32.
- *
- * Выполняет инициализацию флэш-памяти W25Q32 с использованием указанного SPI
- * интерфейса и GPIO для выбора чипа (chip select).
- * Эта инициализация должна быть выполнена до инициализации STM32 и логгера,
- * чтобы обеспечить очистку флэш-памяти.
- *
- * @param hspi Указатель на SPI интерфейс (SPI_HandleTypeDef).
- * @param GPIO_Port Указатель на GPIO порт для выбора чипа.
- * @param GPIO_Pin Пин GPIO для выбора чипа.
- */
+/// @brief   Инициализация флэш-памяти W25Q32.
+/// @details Выполняет инициализацию флэш-памяти W25Q32 с использованием указанного SPI
+///          интерфейса и GPIO для выбора чипа (chip select).
+///          Эта инициализация должна быть выполнена до инициализации STM32 и логгера,
+///          чтобы обеспечить очистку флэш-памяти.
+/// @param   hspi Указатель на SPI интерфейс (SPI_HandleTypeDef).
+/// @param   GPIO_Port Указатель на GPIO порт для выбора чипа.
+/// @param   GPIO_Pin Пин GPIO для выбора чипа.
+/// @retval  None
 static void W25Q32_Flash_Init(SPI_HandleTypeDef *hspi, GPIO_TypeDef *GPIO_Port, uint16_t GPIO_Pin)
 {
     printf("W25Q32 init...\n");
     FLASH_W25Q32_init(hspi, GPIO_Port, GPIO_Pin);
 }
 
-/**
- * @brief Инициализация массива Ethernet-хабов.
- *
- * Эта функция инициализирует каждый элемент массива hub, устанавливая
- * SPI-интерфейс, порт GPIO и пин для выбора чипа (chip select).
- *
- * @param hub Массив структур T_KSZ9567S_SPI для инициализации.
- * @param spi Указатель на SPI-интерфейс, используемый всеми хабами.
- * @param ports Массив указателей на GPIO-порты для выбора чипа каждого хаба.
- * @param pins Массив пинов GPIO для выбора чипа каждого хаба.
- * @param count Количество хабов в массиве.
- */
+/// @brief   Инициализация массива Ethernet-хабов.
+/// @details Эта функция инициализирует каждый элемент массива hub, устанавливая
+///          SPI-интерфейс, порт GPIO и пин для выбора чипа (chip select).
+/// @param   hub Массив структур T_KSZ9567S_SPI для инициализации.
+/// @param   spi Указатель на SPI-интерфейс, используемый всеми хабами.
+/// @param   ports Массив указателей на GPIO-порты для выбора чипа каждого хаба.
+/// @param   pins Массив пинов GPIO для выбора чипа каждого хаба.
+/// @param   count Количество хабов в массиве.
+/// @retval  None
 void InitEthernetHubs(T_KSZ9567S_SPI hub[], SPI_HandleTypeDef *spi,
                       GPIO_TypeDef *ports[], uint16_t pins[], int count)
 {
@@ -543,16 +540,13 @@ void InitEthernetHubs(T_KSZ9567S_SPI hub[], SPI_HandleTypeDef *spi,
     }
 }
 
-/**
- * @brief Настройка регистров каждого Ethernet-хаба.
- *
- * Эта функция выполняет последовательность SPI-записей для настройки внутренних
- * регистров каждого хаба, включая установку задержки, сброс и конфигурацию
- * SGMII.
- *
- * @param hub Массив структур T_KSZ9567S_SPI, представляющих хабы для настройки.
- * @param count Количество хабов в массиве.
- */
+/// @brief   Настройка регистров каждого Ethernet-хаба.
+/// @details Эта функция выполняет последовательность SPI-записей для настройки внутренних
+///          регистров каждого хаба, включая установку задержки, сброс и конфигурацию
+///          SGMII.
+/// @param   hub Массив структур T_KSZ9567S_SPI, представляющих хабы для настройки.
+/// @param   count Количество хабов в массиве.
+/// @retval  None
 void InitEthernetHubRegisters(T_KSZ9567S_SPI hub[], int count)
 {
     for (int i = 0; i < count; i++)
@@ -567,15 +561,11 @@ void InitEthernetHubRegisters(T_KSZ9567S_SPI hub[], int count)
     }
 }
 
-/**
- * @brief  Обработка ошибок
- * @retval None
- */
+/// @brief   Обработка ошибок
+/// @retval  None
 void Error_Handler(void)
 {
-
     static u32_t Errs_Qty = 0;
-
     Errs_Qty++;
 }
 
