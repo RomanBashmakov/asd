@@ -4,6 +4,56 @@
 
 #include "main.h"
 
+/// @brief   Тактирование
+/// @retval  None
+void SystemClock_Config(void);
+
+/// @brief   Инициализация встроеной "периферии".
+/// @details Функция выполняет последовательную инициализацию следующих периферийных модулей:
+///          - GPIO (ввод/вывод общего назначения)
+///          - DMA (прямой доступ к памяти)
+///          - SPI1, SPI2, SPI3 (последовательный периферийный интерфейс)
+///          - I2C1, I2C4 (интерфейс межинтегральной связи)
+///          - ADC1 (аналогово-цифровой преобразователь)
+///          - RTC (часы реального времени)
+///          - USART1, USART2, USART3 (универсальный асинхронный приёмопередатчик)
+///          - TIM12 (таймер)
+///          Данная функция должна быть вызвана для настройки аппаратных модулей перед их использованием.
+/// @retval  None
+void Init_Peripherals(void);
+
+/// @brief   Инициализация флэш-памяти W25Q32.
+/// @details Выполняет инициализацию флэш-памяти W25Q32 с использованием указанного SPI
+///          интерфейса и GPIO для выбора чипа (chip select).
+///          Эта инициализация должна быть выполнена до инициализации STM32 и логгера,
+///          чтобы обеспечить очистку флэш-памяти.
+/// @param   hspi Указатель на SPI интерфейс (SPI_HandleTypeDef).
+/// @param   GPIO_Port Указатель на GPIO порт для выбора чипа.
+/// @param   GPIO_Pin Пин GPIO для выбора чипа.
+/// @retval  None
+static void W25Q32_Flash_Init(SPI_HandleTypeDef *hspi, GPIO_TypeDef *GPIO_Port, uint16_t GPIO_Pin);
+
+/// @brief   Устанавливает состояние всех пинов выбора чипа Ethernet-хабов.
+/// @details Эта функция упрощает управление состоянием пинов выбора чипа (chip select)
+///          для всех четырёх Ethernet-хабов, объединяя повторяющиеся вызовы HAL_GPIO_WritePin
+///          в одном месте.
+/// @param   state Желаемое состояние пинов: GPIO_PIN_SET или GPIO_PIN_RESET.
+/// @retval  None
+void SetHubCSPins(GPIO_PinState state);
+
+/// @brief   Проверка наличия 12В питания с фильтрацией помех.
+/// @details Функция выполняет 30-кратное считывание состояния входа 12В питания,
+///          суммирует значения для фильтрации единичных импульсов и управляет
+///          состоянием питания камер и Ethernet-хабов в зависимости от результата.
+///          Использует статические локальные переменные для сохранения состояния между вызовами.
+///          При отсутствии питания (in12vValue == 0) и если питание было включено,
+///          функция отключает питание камер и хабов.
+///          При наличии питания (in12vValue == 30) и если питание было отключено,
+///          функция включает питание камер и хабов.
+/// @retval  None
+void Check12VPower(void);
+
+
 /// @brief   Версия и дата сборки прошивки
 const char strVersionDT[] = "IL114  22.07.22  20:38";
 
@@ -54,24 +104,11 @@ Status_t SYSTEM_Status;
 /// @brief   Внешнее объединение ARINC_Word_300
 extern union W300_t ARINC_Word_300;
 
-/// @brief   Тактирование
-void SystemClock_Config(void);
 
-/// @brief   Инициализация встроеной "периферии".
-void Init_Peripherals(void);
-
-/// @brief   Инициализация флэш-памяти W25Q32.
-static void W25Q32_Flash_Init(SPI_HandleTypeDef *hspi, GPIO_TypeDef *GPIO_Port, uint16_t GPIO_Pin);
-
-/// @brief   Устанавливает состояние всех пинов выбора чипа Ethernet-хабов.
-void SetHubCSPins(GPIO_PinState state);
-
-/// @brief   Проверка наличия 12В питания с фильтрацией помех.
-void Check12VPower(void);
 
 /**
- * @brief  Main
- * @retval int
+ * @brief  Точка входа в программу
+ * @retval Возвращает 0
  */
 
 int main(void)
@@ -310,8 +347,6 @@ int _write(int file, char *ptr, int len)
     return len;
 }
 
-/// @brief   Тактирование
-/// @retval  None
 void SystemClock_Config(void)
 {
     RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -399,16 +434,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     }
 }
 
-/// @brief   Проверка наличия 12В питания с фильтрацией помех.
-/// @details Функция выполняет 30-кратное считывание состояния входа 12В питания,
-///          суммирует значения для фильтрации единичных импульсов и управляет
-///          состоянием питания камер и Ethernet-хабов в зависимости от результата.
-///          Использует статические локальные переменные для сохранения состояния между вызовами.
-///          При отсутствии питания (in12vValue == 0) и если питание было включено,
-///          функция отключает питание камер и хабов.
-///          При наличии питания (in12vValue == 30) и если питание было отключено,
-///          функция включает питание камер и хабов.
-/// @retval  None
 void Check12VPower(void)
 {
     static char in12vCnt = 0;
@@ -462,12 +487,6 @@ void Check12VPower(void)
     }
 }
 
-/// @brief   Устанавливает состояние всех пинов выбора чипа Ethernet-хабов.
-/// @details Эта функция упрощает управление состоянием пинов выбора чипа (chip select)
-///          для всех четырёх Ethernet-хабов, объединяя повторяющиеся вызовы HAL_GPIO_WritePin
-///          в одном месте.
-/// @param   state Желаемое состояние пинов: GPIO_PIN_SET или GPIO_PIN_RESET.
-/// @retval  None
 void SetHubCSPins(GPIO_PinState state)
 {
     HAL_GPIO_WritePin(GPO_hub1_cs_GPIO_Port, GPO_hub1_cs_Pin, state);
@@ -476,18 +495,6 @@ void SetHubCSPins(GPIO_PinState state)
     HAL_GPIO_WritePin(GPO_hub4_cs_GPIO_Port, GPO_hub4_cs_Pin, state);
 }
 
-/// @brief   Инициализация встроеной "периферии".
-/// @details Функция выполняет последовательную инициализацию следующих периферийных модулей:
-///          - GPIO (ввод/вывод общего назначения)
-///          - DMA (прямой доступ к памяти)
-///          - SPI1, SPI2, SPI3 (последовательный периферийный интерфейс)
-///          - I2C1, I2C4 (интерфейс межинтегральной связи)
-///          - ADC1 (аналогово-цифровой преобразователь)
-///          - RTC (часы реального времени)
-///          - USART1, USART2, USART3 (универсальный асинхронный приёмопередатчик)
-///          - TIM12 (таймер)
-///          Данная функция должна быть вызвана для настройки аппаратных модулей перед их использованием.
-/// @retval  None
 void Init_Peripherals(void)
 {
     MX_GPIO_Init();
@@ -505,15 +512,6 @@ void Init_Peripherals(void)
     MX_TIM12_Init();
 }
 
-/// @brief   Инициализация флэш-памяти W25Q32.
-/// @details Выполняет инициализацию флэш-памяти W25Q32 с использованием указанного SPI
-///          интерфейса и GPIO для выбора чипа (chip select).
-///          Эта инициализация должна быть выполнена до инициализации STM32 и логгера,
-///          чтобы обеспечить очистку флэш-памяти.
-/// @param   hspi Указатель на SPI интерфейс (SPI_HandleTypeDef).
-/// @param   GPIO_Port Указатель на GPIO порт для выбора чипа.
-/// @param   GPIO_Pin Пин GPIO для выбора чипа.
-/// @retval  None
 static void W25Q32_Flash_Init(SPI_HandleTypeDef *hspi, GPIO_TypeDef *GPIO_Port, uint16_t GPIO_Pin)
 {
     printf("W25Q32 init...\n");
