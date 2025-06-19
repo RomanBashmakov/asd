@@ -5,16 +5,9 @@
  *      Author: zhuchenkovao
  */
 
-
-
 #include <timers_hw2.h>
 
-
-
-
 volatile unsigned long timer1ms___ = 0;
-
-
 
 void TIMERS_setTimer(TTimer *tmr, uint32_t time_ms)
 {
@@ -53,26 +46,3 @@ uint32_t TIMERS_ShowTime(TTimer *tmr)
   }
   else return 0;
 }
-
-
-
-/*
-void HAL_SYSTICK_Callback(void)
-{
-    ++timer1ms;
-
-}
-
-// */
-
-
-
-// задержка по нопам
-void Delay_nop(uint32_t nCount)
-{
-  for (int i = 0; i < nCount; i++);
-
-}
-
-
-
