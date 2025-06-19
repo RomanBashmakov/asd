@@ -27,6 +27,8 @@ extern "C" {
 #include "stm32_status.h"
 #include "terminal.h"
 
+#include "channel_utils.h"
+
 /// @brief   Задержка старта основной системы в миллисекундах.
 #define MAIN_SYSTEM_START_DELAY_MS 500
 
@@ -49,7 +51,8 @@ extern "C" {
 
 extern const char strVersionDT[];
 
-extern u8_t Channel_No;
+uint8_t GetChannelNo(void);
+void SetChannelNo(uint8_t ch_no);
 
 void Error_Handler(void);
 
@@ -129,7 +132,6 @@ void Error_Handler(void);
 #define ac_sda_Pin GPIO_PIN_7
 #define ac_sda_GPIO_Port GPIOB
 
-#define CHANNELS_TOTAL	6
 #define BASE_FORMAT1	12
 
 /// @brief   таймаут поступления пакетов от ХАЭ-21, их периодичность по ТЗ 100..200 мс, по ТЗ при непоступлении 3 пакетов (плюс 100мс на запас) считаем ХАЭ неисправным

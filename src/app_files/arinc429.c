@@ -1,10 +1,11 @@
-/*
- * arinc429.c
- *
- *  Created on: 15 сент. 2021 г.
- *      Author: zhuchenkovao
- */
-
+/// @file    arinc429.c
+/// @author  Тузиков Г.А. tuzikovga@raitibor.ru, zhuchenkovao, Башмаков Р.А. bashmakovra@raitibor.ru
+/// @brief   ВПО для STM32 СВР-Маршрутизатора
+/// @details реализация функций инициализации, обработки и передачи данных по протоколу ARINC 429 
+///          с использованием микросхемы HI3220,
+///          парсинг сообщений,
+///          управление таймерами, 
+///          взаимодействие с аппаратными пинами.
 
 #include <memory.h>
 #include <stdio.h>
@@ -681,7 +682,7 @@ void ARINC429_Proto_buildUartPacketControl(char *packet)
   packet[1] |= arinc429Control.ACTIVE_CURSOR_CAPT & 1;
 
 //  packet[2] = arinc429Control.CURSOR_X_CAPT >> 3;
-  packet[2] = Channel_No;
+  packet[2] = GetChannelNo();
 
   packet[3] = (arinc429Control.CURSOR_X_CAPT & 0x07) << 5;
   packet[3] |= (arinc429Control.CAMS_NUMBER_CAPT & 0x0F) << 1;

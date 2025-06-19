@@ -15,6 +15,8 @@
 #include "Hi3220_lib.h"
 #include "ina226.h"
 
+#include "channel_utils.h"
+
 #define CAMERA_CURRENT_THRESHOLD 0.05
 
 #pragma pack (push, 1)

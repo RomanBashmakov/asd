@@ -24,7 +24,7 @@ void Init_Peripherals(void);
 
 /// @brief   Инициализация флэш-памяти W25Q32.
 /// @details Выполняет инициализацию флэш-памяти W25Q32 с использованием указанного SPI
-///          интерфейса и GPIO для выбора чипа (chip select).
+///          интерфейса и GPIO для выбора чипа.
 ///          Эта инициализация должна быть выполнена до инициализации STM32 и логгера,
 ///          чтобы обеспечить очистку флэш-памяти.
 /// @param   hspi Указатель на SPI интерфейс (SPI_HandleTypeDef).
@@ -56,9 +56,6 @@ void Check12VPower(void);
 
 /// @brief   Версия и дата сборки прошивки
 const char strVersionDT[] = "IL114  22.07.22  20:38";
-
-/// @brief   Номер выбранного канала (камеры).
-u8_t Channel_No = 0;
 
 /// @brief   Таймер отладки
 TTimer tmrDebug;
@@ -282,10 +279,10 @@ int main(void)
         // Номер камеры передается как от 1-й до 6-й,
         // если камера не выбрана (напр. сломан переключатель) - будет передан 0
         // - признак неисправности
-        Channel_No = (ch_no < CHANNELS_TOTAL ? ch_no + 1 : 0);
+        SetChannelNo(ch_no);
 
         SYSTEM_Status.cam_switch_fault =
-            (Channel_No ? 0 : 1);  // если свитч неисправен, он будет давать '0'
+            (GetChannelNo() ? 0 : 1);  // если свитч неисправен, он будет давать '0'
     }
 }// main_end
 
@@ -399,7 +396,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (huart == &huart1)
     {
-        // printf ("%02X  %c", uart1Recv, uart1Recv);
         TERMINAL_recvByte(&termPc2MCU, uart1Recv);
         HAL_UART_Receive_IT(&huart1, &uart1Recv, 1);
     }
@@ -429,7 +425,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
             }
         }
 
-        // printf ("%02X  %c", uart3Recv, uart3Recv);
         HAL_UART_Receive_IT(&huart3, &uart3Recv, 1);
     }
 }
