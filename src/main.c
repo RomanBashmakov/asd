@@ -11,17 +11,9 @@ void SystemClock_Config(void);
 
 /// @brief   Инициализация встроеной "периферии".
 /// @details Функция выполняет последовательную инициализацию следующих
-/// периферийных модулей:
-///          - GPIO (ввод/вывод общего назначения)
-///          - DMA (прямой доступ к памяти)
-///          - SPI1, SPI2, SPI3 (последовательный периферийный интерфейс)
-///          - I2C1, I2C4 (интерфейс межинтегральной связи)
-///          - ADC1 (аналогово-цифровой преобразователь)
-///          - RTC (часы реального времени)
-///          - USART1, USART2, USART3 (универсальный асинхронный
-///          приёмопередатчик)
-///          - TIM12 (таймер)
-///          Данная функция должна быть вызвана для настройки аппаратных модулей
+///          периферийных модулей:
+///          GPIO, I2C1, I2C4, USART1, USART2, USART3, TIM12, RTC, ADC1, SPI1, SPI2, SPI3, DMA
+/// @warning Данная функция должна быть вызвана для настройки аппаратных модулей
 ///          перед их использованием.
 /// @retval  None
 void Init_Peripherals(void);
@@ -62,11 +54,31 @@ void SetHubCSPins(GPIO_PinState state);
 /// @retval  None
 void Check12VPower(void);
 
+/// @brief   Настройка регистров каждого Ethernet-хаба.
+/// @details Эта функция выполняет последовательность SPI-записей для настройки
+/// внутренних
+///          регистров каждого хаба, включая установку задержки, сброс и
+///          конфигурацию SGMII.
+/// @param   hub Массив структур T_KSZ9567S_SPI, представляющих хабы для
+/// настройки.
+/// @param   count Количество хабов в массиве.
+/// @retval  None
+void InitEthernetHubRegisters(T_KSZ9567S_SPI hub[], int count);
+
+/// @brief   Инициализация массива Ethernet-хабов.
+/// @details Эта функция инициализирует каждый элемент массива hub, устанавливая
+///          SPI-интерфейс, порт GPIO и пин для выбора чипа (chip select).
+/// @param   hub Массив структур T_KSZ9567S_SPI для инициализации.
+/// @param   spi Указатель на SPI-интерфейс, используемый всеми хабами.
+/// @param   ports Массив указателей на GPIO-порты для выбора чипа каждого хаба.
+/// @param   pins Массив пинов GPIO для выбора чипа каждого хаба.
+/// @param   count Количество хабов в массиве.
+/// @retval  None
+void InitEthernetHubs(T_KSZ9567S_SPI hub[], SPI_HandleTypeDef *spi,
+                      GPIO_TypeDef *ports[], uint16_t pins[], int count);
+
 /// @brief   Версия и дата сборки прошивки
 const char strVersionDT[] = "IL114  22.07.22  20:38";
-
-/// @brief   Таймер отладки
-TTimer tmrDebug;
 
 /// @brief   Терминал для отладочного вывода
 TTerminal termDbg;
@@ -116,6 +128,9 @@ extern union W300_t ARINC_Word_300;
 
 int main(void)
 {
+    /// @brief   Таймер отладки
+    TTimer tmrDebug;
+
     /// @brief   позиции переключателя
     u8_t sw_pos__;
 
@@ -191,9 +206,10 @@ int main(void)
         */
         _STR
 
-            // services:
-            // terminal 1
-            TERMINAL_process(&termDbg);
+        // services:
+        // terminal 1
+        TERMINAL_process(&termDbg);
+
         if (termDbg.cbOutput.count)
         {
             if (huart2.gState == HAL_UART_STATE_READY)
@@ -312,15 +328,12 @@ void System_Init(void)
     // Установка системного статуса в состояние ошибки (SYS_FAULT)
     SYSTEM_Status.system_stat = SYS_FAULT;
     //  SYSTEM_Status.srvrouter = SRS_NORMAL_OPERATION;
-    //  SYSTEM_Status.storage = 	STS_NORMAL_OPERATION;
-
-    // Установка статуса маршрутизатора сервиса в 1 (возможно, индикатор ошибки)
-    SYSTEM_Status.srvrouter_stat = 1;
     //  SYSTEM_Status.storage_stat 	= SYS_NORMAL_OPERATION /* когда
     //  сервер будет присылать его реальный статус поставить здесь SYS_FAULT*/;
 
-    // Установка статуса хранилища в 1 (возможно, индикатор ошибки)
-    SYSTEM_Status.storage_stat = 1;
+    // Установка статуса маршрутизатора сервиса в 1 (возможно, индикатор ошибки)
+    SYSTEM_Status.srvrouter_stat = 1;
+    //  SYSTEM_Status.storage_stat 	= SYS_NORMAL_OPERATION;
 
     // Установка флага ошибки XAE21
     SYSTEM_Status.XAE21_fault = true;
@@ -519,15 +532,6 @@ static void W25Q32_Flash_Init(SPI_HandleTypeDef *hspi, GPIO_TypeDef *GPIO_Port,
     FLASH_W25Q32_init(hspi, GPIO_Port, GPIO_Pin);
 }
 
-/// @brief   Инициализация массива Ethernet-хабов.
-/// @details Эта функция инициализирует каждый элемент массива hub, устанавливая
-///          SPI-интерфейс, порт GPIO и пин для выбора чипа (chip select).
-/// @param   hub Массив структур T_KSZ9567S_SPI для инициализации.
-/// @param   spi Указатель на SPI-интерфейс, используемый всеми хабами.
-/// @param   ports Массив указателей на GPIO-порты для выбора чипа каждого хаба.
-/// @param   pins Массив пинов GPIO для выбора чипа каждого хаба.
-/// @param   count Количество хабов в массиве.
-/// @retval  None
 void InitEthernetHubs(T_KSZ9567S_SPI hub[], SPI_HandleTypeDef *spi,
                       GPIO_TypeDef *ports[], uint16_t pins[], int count)
 {
@@ -539,15 +543,6 @@ void InitEthernetHubs(T_KSZ9567S_SPI hub[], SPI_HandleTypeDef *spi,
     }
 }
 
-/// @brief   Настройка регистров каждого Ethernet-хаба.
-/// @details Эта функция выполняет последовательность SPI-записей для настройки
-/// внутренних
-///          регистров каждого хаба, включая установку задержки, сброс и
-///          конфигурацию SGMII.
-/// @param   hub Массив структур T_KSZ9567S_SPI, представляющих хабы для
-/// настройки.
-/// @param   count Количество хабов в массиве.
-/// @retval  None
 void InitEthernetHubRegisters(T_KSZ9567S_SPI hub[], int count)
 {
     for (int i = 0; i < count; i++)
