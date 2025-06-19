@@ -12,7 +12,8 @@ void SystemClock_Config(void);
 /// @brief   Инициализация встроеной "периферии".
 /// @details Функция выполняет последовательную инициализацию следующих
 ///          периферийных модулей:
-///          GPIO, I2C1, I2C4, USART1, USART2, USART3, TIM12, RTC, ADC1, SPI1, SPI2, SPI3, DMA
+///          GPIO, I2C1, I2C4, USART1, USART2, USART3, TIM12, RTC, ADC1, SPI1,
+///          SPI2, SPI3, DMA
 /// @warning Данная функция должна быть вызвана для настройки аппаратных модулей
 ///          перед их использованием.
 /// @retval  None
@@ -42,7 +43,7 @@ void SetHubCSPins(GPIO_PinState state);
 
 /// @brief   Проверка наличия 12В питания с фильтрацией помех.
 /// @details Функция выполняет 30-кратное считывание состояния входа 12В
-/// питания,
+///          питания,
 ///          суммирует значения для фильтрации единичных импульсов и управляет
 ///          состоянием питания камер и Ethernet-хабов в зависимости от
 ///          результата. Использует статические локальные переменные для
@@ -56,7 +57,7 @@ void Check12VPower(void);
 
 /// @brief   Настройка регистров каждого Ethernet-хаба.
 /// @details Эта функция выполняет последовательность SPI-записей для настройки
-/// внутренних
+///          внутренних
 ///          регистров каждого хаба, включая установку задержки, сброс и
 ///          конфигурацию SGMII.
 /// @param   hub Массив структур T_KSZ9567S_SPI, представляющих хабы для
@@ -86,31 +87,10 @@ TTerminal termDbg;
 /// @brief   Терминал для связи с ПК
 TTerminal termPc2MCU;
 
-/// @brief   Буфер передачи UART2 для DMA
-char uart2TxBuffer[UART2_TX_BUFFER_SIZE];
-
-/// @brief   Буфер передачи UART1 для DMA
-char uart1TxBuffer[UART1_TX_BUFFER_SIZE];
-
 /// @brief   Переменные приёма UART
 uint8_t uart1Recv;
 uint8_t uart2Recv;
 uint8_t uart3Recv;
-
-/// @brief   Состояние приёма UART3
-uint8_t uart3State = 0;
-
-/// @brief   Буфер приёма UART3
-char uart3RecvBuffer[10];
-
-/// @brief   Индекс буфера приёма UART3
-uint8_t uart3RecvBufferIndex = 0;
-
-/// @brief   Флаг нового пакета UART3
-uint8_t uart3NewPacket = 0;
-
-/// @brief   Переключатель камеры
-u8_t CamSwitch;
 
 /// @brief   Матрица A300
 enum A300_Matrix_e A300_Matrix;
@@ -118,8 +98,12 @@ enum A300_Matrix_e A300_Matrix;
 /// @brief   Структура статуса системы
 Status_t SYSTEM_Status;
 
-/// @brief   Внешнее объединение ARINC_Word_300
-extern union W300_t ARINC_Word_300;
+static UART_Ctx uart3 = {
+    .state = 0,          //uart3.state = uart3State 			
+    .buffer = {0},       //uart3.buffer = uart3RecvBuffer 		
+    .bufferIndex = 0,    //uart3.bufferIndex = uart3RecvBufferIndex 
+    .newDataFlag = 0     //uart3.newDataFlag = uart3NewPacket 		
+};
 
 /**
  * @brief  Точка входа в программу
@@ -128,6 +112,12 @@ extern union W300_t ARINC_Word_300;
 
 int main(void)
 {
+    /// @brief   Буфер передачи UART1 для DMA
+    char uart1TxBuffer[UART1_TX_BUFFER_SIZE];
+
+    /// @brief   Буфер передачи UART2 для DMA
+    char uart2TxBuffer[UART2_TX_BUFFER_SIZE];
+
     /// @brief   Таймер отладки
     TTimer tmrDebug;
 
@@ -206,9 +196,9 @@ int main(void)
         */
         _STR
 
-        // services:
-        // terminal 1
-        TERMINAL_process(&termDbg);
+            // services:
+            // terminal 1
+            TERMINAL_process(&termDbg);
 
         if (termDbg.cbOutput.count)
         {
@@ -241,13 +231,13 @@ int main(void)
         }
 
         // usart3 arinc-429 translate
-        if (uart3NewPacket)
+        if (uart3.newDataFlag)
         {
             char buffer[127] = {0};
             char size = 127;
-            uart3NewPacket = 0;
+            uart3.newDataFlag = 0;
 
-            ARINC429_Proto_InputPacket(uart3RecvBuffer, uart3RecvBufferIndex,
+            ARINC429_Proto_InputPacket(uart3.buffer, uart3.bufferIndex,
                                        &buffer[0], &size);
             if (size > 0)
             {
@@ -319,21 +309,12 @@ void System_Init(void)
 
     // Установка матрицы A300 в нормальный режим работы
     A300_Matrix = AMX_NORMAL_OPERATION;
-    //  System_Status = 		SYS_NORMAL_OPERATION;
-    //  SrvRouter_Status = 	SRS_NORMAL_OPERATION;
-    //  Storage_Status = 		STS_NORMAL_OPERATION;
-
-    //  extern Status_t Status;
 
     // Установка системного статуса в состояние ошибки (SYS_FAULT)
     SYSTEM_Status.system_stat = SYS_FAULT;
-    //  SYSTEM_Status.srvrouter = SRS_NORMAL_OPERATION;
-    //  SYSTEM_Status.storage_stat 	= SYS_NORMAL_OPERATION /* когда
-    //  сервер будет присылать его реальный статус поставить здесь SYS_FAULT*/;
 
     // Установка статуса маршрутизатора сервиса в 1 (возможно, индикатор ошибки)
     SYSTEM_Status.srvrouter_stat = 1;
-    //  SYSTEM_Status.storage_stat 	= SYS_NORMAL_OPERATION;
 
     // Установка флага ошибки XAE21
     SYSTEM_Status.XAE21_fault = true;
@@ -343,24 +324,6 @@ void System_Init(void)
 
     // Установка формата ARINC429 в базовый формат
     arinc429Control.FORMAT1 = BASE_FORMAT1;
-
-    //  npkts = 0;//DBG
-    //  DBG_init_HAL();//DBG
-}
-
-/// @brief   Функция отладочного вывода через SWD (Serial Wire Debug) интерфейс
-///          STM32.
-/// @details Используется для перенаправления вывода функций printf и puts
-/// @param   file Не используется, параметр для совместимости с системным
-/// вызовом write
-/// @param   ptr Указатель на буфер с данными для вывода
-/// @param   len Количество байт для вывода из буфера
-/// @retval  Количество успешно выведенных байт.
-int _write(int file, char *ptr, int len)
-{
-    int i = 0;
-    for (i = 0; i < len; i++) ITM_SendChar((*ptr++));
-    return len;
 }
 
 void SystemClock_Config(void)
@@ -410,6 +373,7 @@ void SystemClock_Config(void)
     }
 }
 
+/// @brief    Переопределенный HAL-овский weak-колбэк на приём по UART
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (huart == &huart1)
@@ -427,19 +391,19 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     {
         if (uart3Recv == (uint8_t)0xBE || uart3Recv == (uint8_t)0xCE)
         {
-            uart3State = 1;
-            uart3RecvBufferIndex = 0;
-            uart3NewPacket = 0;
+            uart3.state = 1;
+            uart3.bufferIndex = 0;
+            uart3.newDataFlag = 0;
         }
 
-        if (uart3State)
+        if (uart3.state)
         {
-            uart3RecvBuffer[uart3RecvBufferIndex] = uart3Recv;
-            uart3RecvBufferIndex++;
-            if (uart3RecvBufferIndex > 2)
+            uart3.buffer[uart3.bufferIndex] = uart3Recv;
+            uart3.bufferIndex++;
+            if (uart3.bufferIndex > 2)
             {
-                uart3State = 0;
-                uart3NewPacket = 1;
+                uart3.state = 0;
+                uart3.newDataFlag = 1;
             }
         }
 
@@ -563,6 +527,21 @@ void Error_Handler(void)
 {
     static u32_t Errs_Qty = 0;
     Errs_Qty++;
+}
+
+/// @brief   Функция отладочного вывода через SWD (Serial Wire Debug) интерфейс
+///          STM32.
+/// @details Используется для перенаправления вывода функций printf и puts
+/// @param   file Не используется, параметр для совместимости с системным
+/// вызовом write
+/// @param   ptr Указатель на буфер с данными для вывода
+/// @param   len Количество байт для вывода из буфера
+/// @retval  Количество успешно выведенных байт.
+int _write(int file, char *ptr, int len)
+{
+    int i = 0;
+    for (i = 0; i < len; i++) ITM_SendChar((*ptr++));
+    return len;
 }
 
 #ifdef USE_FULL_ASSERT
