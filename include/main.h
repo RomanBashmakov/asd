@@ -179,6 +179,26 @@ typedef struct {
 } Status_t;
 
 
+	/// @brief   Состояние приёма UART3
+	uint8_t uart3State = 0;
+
+	/// @brief   Буфер приёма UART3
+	char uart3RecvBuffer[10];
+
+	/// @brief   Индекс буфера приёма UART3
+	uint8_t uart3RecvBufferIndex = 0;
+
+	/// @brief   Флаг нового пакета UART3
+	uint8_t uart3NewPacket = 0;
+
+typedef struct {
+    uint8_t state;          // Состояние приёма (например, IDLE, RECEIVING, READY)
+    char buffer[10];        // Буфер приёма данных
+    uint8_t bufferIndex;    // Текущая позиция в буфере
+    uint8_t newDataFlag;    // Флаг новых данных
+} UART_Ctx;
+
+
 #ifdef __cplusplus
 }
 #endif

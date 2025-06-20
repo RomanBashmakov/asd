@@ -1,13 +1,15 @@
 /// @file    main.c
-/// @author  Тузиков Г.А. tuzikovga@raitibor.ru, zhuchenkovao, Башмаков Р.А.
-/// bashmakovra@raitibor.ru
+/// @author  Башмаков Р.А. bashmakovra@raitibor.ru
 /// @brief   ВПО для STM32 СВР-Маршрутизатора
 
 #include "main.h"
 
-/// @brief   Тактирование
-/// @retval  None
-void SystemClock_Config(void);
+/// @brief   Функция настройки частотного блока
+/// @details Данная функция задает источник тактирования, делители и множители частоты,
+///          а также включает тактирование используемых блоков
+/// @return  Возвращает 0 в случае успешной настройки частотного блока.
+///          В противном случае возвращает код ошибки
+int _Main_SystemClock_Config(void)
 
 /// @brief   Инициализация встроеной "периферии".
 /// @details Функция выполняет последовательную инициализацию следующих
@@ -17,7 +19,7 @@ void SystemClock_Config(void);
 /// @warning Данная функция должна быть вызвана для настройки аппаратных модулей
 ///          перед их использованием.
 /// @retval  None
-void Init_Peripherals(void);
+void _Main_Init_Peripherals(void);
 
 /// @brief   Инициализация флэш-памяти W25Q32.
 /// @details Выполняет инициализацию флэш-памяти W25Q32 с использованием
@@ -105,30 +107,26 @@ static UART_Ctx uart3 = {
     .newDataFlag = 0     //uart3.newDataFlag = uart3NewPacket 		
 };
 
-/**
- * @brief  Точка входа в программу
- * @retval Возвращает 0
- */
+/// @brief   Буфер передачи UART1 для DMA
+char uart1TxBuffer[UART1_TX_BUFFER_SIZE];
 
+/// @brief   Буфер передачи UART2 для DMA
+char uart2TxBuffer[UART2_TX_BUFFER_SIZE];
+
+/// @brief   Таймер отладки
+TTimer tmrDebug;
+
+/// @brief   Точка входа в программу
+/// @retval  Возвращает 0
 int main(void)
 {
-    /// @brief   Буфер передачи UART1 для DMA
-    char uart1TxBuffer[UART1_TX_BUFFER_SIZE];
-
-    /// @brief   Буфер передачи UART2 для DMA
-    char uart2TxBuffer[UART2_TX_BUFFER_SIZE];
-
-    /// @brief   Таймер отладки
-    TTimer tmrDebug;
-
     /// @brief   позиции переключателя
     u8_t sw_pos__;
 
     HAL_Init();
 
-    SystemClock_Config();
-
-    Init_Peripherals();
+    _Main_SystemClock_Config();
+    _Main_Init_Peripherals();
 
     TERMINAL_init(&termDbg);
     TERMINAL_init(&termPc2MCU);
@@ -185,21 +183,11 @@ int main(void)
     // включение вентилятора на 100%
     htim12.Instance->CCR2 = 100;
 
-    System_Init();
+    _Main_System_Init();
 
     while (1)
     {
-        /*
-            Макрос _STR служит для генерации короткого импульса на определённом
-           выводе микроконтроллера. Для измерения времени выполнения кода с
-           помощью осциллографа (наверно)
-        */
-        _STR
-
-            // services:
-            // terminal 1
-            TERMINAL_process(&termDbg);
-
+        TERMINAL_process(&termDbg);
         if (termDbg.cbOutput.count)
         {
             if (huart2.gState == HAL_UART_STATE_READY)
@@ -299,7 +287,7 @@ int main(void)
     }
 }  // main_end
 
-void System_Init(void)
+void _Main_System_Init(void)
 {
     // Внешнее объявление структуры MCP23008 для работы с устройством
     extern MCP23008_t ic_mcp23008;
@@ -326,7 +314,7 @@ void System_Init(void)
     arinc429Control.FORMAT1 = BASE_FORMAT1;
 }
 
-void SystemClock_Config(void)
+int _Main_SystemClock_Config(void)
 {
     RCC_OscInitTypeDef RCC_OscInitStruct = {0};
     RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
@@ -350,13 +338,13 @@ void SystemClock_Config(void)
     RCC_OscInitStruct.PLL.PLLQ = 2;
     if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
     {
-        Error_Handler();
+        return -1;
     }
     /** Activate the Over-Drive mode
      */
     if (HAL_PWREx_EnableOverDrive() != HAL_OK)
     {
-        Error_Handler();
+        return -2;
     }
     /** Initializes the CPU, AHB and APB buses clocks
      */
@@ -369,8 +357,10 @@ void SystemClock_Config(void)
 
     if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_7) != HAL_OK)
     {
-        Error_Handler();
+        return -3;
     }
+
+    return 0;
 }
 
 /// @brief    Переопределенный HAL-овский weak-колбэк на приём по UART
@@ -472,7 +462,7 @@ void SetHubCSPins(GPIO_PinState state)
     HAL_GPIO_WritePin(GPO_hub4_cs_GPIO_Port, GPO_hub4_cs_Pin, state);
 }
 
-void Init_Peripherals(void)
+void _Main_Init_Peripherals(void)
 {
     MX_GPIO_Init();
     MX_DMA_Init();
