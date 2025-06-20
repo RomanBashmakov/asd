@@ -41,7 +41,7 @@ static void W25Q32_Flash_Init(SPI_HandleTypeDef *hspi, GPIO_TypeDef *GPIO_Port,
 ///          HAL_GPIO_WritePin в одном месте.
 /// @param   state Желаемое состояние пинов: GPIO_PIN_SET или GPIO_PIN_RESET.
 /// @retval  None
-void SetHubCSPins(GPIO_PinState state);
+void _Main_SetHubCSPins(GPIO_PinState state);
 
 /// @brief   Проверка наличия 12В питания с фильтрацией помех.
 /// @details Функция выполняет 30-кратное считывание состояния входа 12В
@@ -55,7 +55,7 @@ void SetHubCSPins(GPIO_PinState state);
 ///          если питание было отключено, функция включает питание камер и
 ///          хабов.
 /// @retval  None
-void Check12VPower(void);
+void _Main_Check12VPower(void);
 
 /// @brief   Настройка регистров каждого Ethernet-хаба.
 /// @details Эта функция выполняет последовательность SPI-записей для настройки
@@ -66,7 +66,7 @@ void Check12VPower(void);
 /// настройки.
 /// @param   count Количество хабов в массиве.
 /// @retval  None
-void InitEthernetHubRegisters(T_KSZ9567S_SPI hub[], int count);
+void _Main_InitEthernetHubRegisters(T_KSZ9567S_SPI hub[], int count);
 
 /// @brief   Инициализация массива Ethernet-хабов.
 /// @details Эта функция инициализирует каждый элемент массива hub, устанавливая
@@ -77,7 +77,7 @@ void InitEthernetHubRegisters(T_KSZ9567S_SPI hub[], int count);
 /// @param   pins Массив пинов GPIO для выбора чипа каждого хаба.
 /// @param   count Количество хабов в массиве.
 /// @retval  None
-void InitEthernetHubs(T_KSZ9567S_SPI hub[], SPI_HandleTypeDef *spi,
+void _Main_InitEthernetHubs(T_KSZ9567S_SPI hub[], SPI_HandleTypeDef *spi,
                       GPIO_TypeDef *ports[], uint16_t pins[], int count);
 
 /// @brief   Версия и дата сборки прошивки
@@ -138,14 +138,14 @@ int main(void)
     STM32_init();  // инициализация стм32 после флеш и до инициализации лога !!!
                    // т.к. здесь может произойти очистка флэш-памяти
 
-    SetHubCSPins(
+    _Main_SetHubCSPins(
         GPIO_PIN_RESET);  // Сброс всех пинов выбора чипа Ethernet-хабов
 
     // включение блока питания камер с задержкой
     HAL_Delay(MAIN_SYSTEM_START_DELAY_MS);
     HAL_GPIO_WritePin(GPO_28Vcam_en_GPIO_Port, GPO_28Vcam_en_Pin, GPIO_PIN_SET);
 
-    SetHubCSPins(
+    _Main_SetHubCSPins(
         GPIO_PIN_SET);  // Установка всех пинов выбора чипа Ethernet-хабов
 
     HAL_Delay(200);
@@ -153,7 +153,7 @@ int main(void)
     // Инициализация ethernet hubs
     T_KSZ9567S_SPI hub[HUBS_CNT];
 
-    InitEthernetHubs(
+    _Main_InitEthernetHubs(
         hub, &hspi3,
         (GPIO_TypeDef *[]){GPO_hub1_cs_GPIO_Port, GPO_hub2_cs_GPIO_Port,
                            GPO_hub3_cs_GPIO_Port, GPO_hub4_cs_GPIO_Port},
@@ -161,7 +161,7 @@ int main(void)
                      GPO_hub4_cs_Pin},
         HUBS_CNT);
 
-    InitEthernetHubRegisters(hub, HUBS_CNT);
+    _Main_InitEthernetHubRegisters(hub, HUBS_CNT);
 
     // включение вентилятора
     HAL_TIM_PWM_Start(&htim12, TIM_CHANNEL_2);
@@ -263,7 +263,7 @@ int main(void)
         }  // */
 
         // проверка наличия 12В и передергивание 28в и 3в (запаралелено)
-        Check12VPower();
+        _Main_Check12VPower();
 
         // Опрос переключателя выбора камеры и перевод в номер выбранной камеры
         sw_pos__ = MCP23008_Read_Reg(&ic_mcp23008, 9) &
@@ -401,7 +401,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     }
 }
 
-void Check12VPower(void)
+void _Main_Check12VPower(void)
 {
     static char in12vCnt = 0;
     static char in12vValue = 0;
@@ -454,7 +454,7 @@ void Check12VPower(void)
     }
 }
 
-void SetHubCSPins(GPIO_PinState state)
+void _Main_SetHubCSPins(GPIO_PinState state)
 {
     HAL_GPIO_WritePin(GPO_hub1_cs_GPIO_Port, GPO_hub1_cs_Pin, state);
     HAL_GPIO_WritePin(GPO_hub2_cs_GPIO_Port, GPO_hub2_cs_Pin, state);
@@ -486,7 +486,7 @@ static void W25Q32_Flash_Init(SPI_HandleTypeDef *hspi, GPIO_TypeDef *GPIO_Port,
     FLASH_W25Q32_init(hspi, GPIO_Port, GPIO_Pin);
 }
 
-void InitEthernetHubs(T_KSZ9567S_SPI hub[], SPI_HandleTypeDef *spi,
+void _Main_InitEthernetHubs(T_KSZ9567S_SPI hub[], SPI_HandleTypeDef *spi,
                       GPIO_TypeDef *ports[], uint16_t pins[], int count)
 {
     for (int i = 0; i < count; i++)
@@ -497,7 +497,7 @@ void InitEthernetHubs(T_KSZ9567S_SPI hub[], SPI_HandleTypeDef *spi,
     }
 }
 
-void InitEthernetHubRegisters(T_KSZ9567S_SPI hub[], int count)
+void _Main_InitEthernetHubRegisters(T_KSZ9567S_SPI hub[], int count)
 {
     for (int i = 0; i < count; i++)
     {

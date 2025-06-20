@@ -5,13 +5,7 @@
  *      Author: zhuchenkovao
  */
 
-
 #include "Hi3220_lib.h"
-
-
-
-
-
 
 //===================================================================================
 int HI3220_init(THI3220 *hi, THI3220PinStruct *ps, SPI_HandleTypeDef *hspi)
@@ -388,12 +382,3 @@ void ARINC_LoadDescriptors(THI3220 *hi,
   HI3220_writeAtMAP (hi, EOS);   // End of Seq, writes 0 at end
 
 }
-
-
-
-
-
-
-
-
-

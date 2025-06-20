@@ -8,10 +8,7 @@
 #ifndef INC_APP_FILES_SW_MDIO_H_
 #define INC_APP_FILES_SW_MDIO_H_
 
-
 #include "stm32f7xx_hal.h"
-
-
 
 //AR8031 PHY registers
  #define AR8031_BMCR                                    0x00
@@ -273,9 +270,6 @@
  #define AR8031_CHIP_CONF_MODE_CFG                      0x000F
 
 
-
-
-
 typedef struct SMDIO {
 
   uint16_t                mdioPin;
@@ -288,26 +282,7 @@ typedef struct SMDIO {
 
 } TMDIO;
 
-
-
 void SW_MDIO_write(TMDIO *t, uint8_t regAddr, uint16_t data);
 uint16_t  SW_MDIO_read(TMDIO *t, uint8_t regAddr);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #endif /* INC_APP_FILES_SW_MDIO_H_ */

@@ -4,7 +4,7 @@
 
 
 typedef struct Cbuffer{
-    char *data;   // указатель на массив данных
+    char *data;
     int count;
     int size;
     int begin;
