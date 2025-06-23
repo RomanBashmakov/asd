@@ -79,6 +79,23 @@ void _Main_InitEthernetHubRegisters(T_KSZ9567S_SPI hub[], int count);
 /// @retval  None
 void _Main_InitEthernetHubs(T_KSZ9567S_SPI hub[], SPI_HandleTypeDef *spi,
                       GPIO_TypeDef *ports[], uint16_t pins[], int count);
+                    
+/// @brief   Отправки данных терминала.
+/// @param   term терминал (например, &termDbg).
+/// @param   huart указатель на UART (&huart1 или &huart2).
+/// @param   buffer TX-буфер (uart1TxBuffer или uart2TxBuffer).
+/// @param   buffer_size размер буфера (UART1_TX_BUFFER_SIZE).
+/// @retval  None
+void _Main_SendTerminalData(TERMINAL_t* term, UART_HandleTypeDef* huart, 
+                     uint8_t* buffer, size_t buffer_size);
+
+/// @brief   Проверка и перезапуск UART (то, что было в while(1))
+/// @retval  None
+void UART_CheckErrors(void);
+
+/// @brief   Функция обработки ARINC-429
+/// @retval  None
+void _Main_ARINC429_Cycle(void);
 
 /// @brief   Версия и дата сборки прошивки
 const char strVersionDT[] = "IL114  22.07.22  20:38";
@@ -133,7 +150,7 @@ int main(void)
 
     TIMERS_setTimer(&tmrDebug, 30000);
 
-    W25Q32_Flash_Init(&hspi1, GPO_nvm_ncs_GPIO_Port, GPO_nvm_ncs_Pin);
+    _Main_W25Q32_Flash_Init(&hspi1, GPO_nvm_ncs_GPIO_Port, GPO_nvm_ncs_Pin);
 
     STM32_init();  // инициализация стм32 после флеш и до инициализации лога !!!
                    // т.к. здесь может произойти очистка флэш-памяти
@@ -187,51 +204,16 @@ int main(void)
 
     while (1)
     {
-        TERMINAL_process(&termDbg);
-        if (termDbg.cbOutput.count)
-        {
-            if (huart2.gState == HAL_UART_STATE_READY)
-            {
-                int count = termDbg.cbOutput.count;
-                if (count > UART2_TX_BUFFER_SIZE) count = UART2_TX_BUFFER_SIZE;
-                CBUFF_getFirstNBytes(&termDbg.cbOutput, (char *)uart2TxBuffer,
-                                     count);
-                // transmit uart 2
-                HAL_UART_Transmit(&huart2, (unsigned char *)uart2TxBuffer,
-                                  count, 100);
-            }
-        }
 
-        // terminal 2
+        TERMINAL_process(&termDbg);
         TERMINAL_process(&termPc2MCU);
-        if (termPc2MCU.cbOutput.count)
-        {
-            if (huart1.gState == HAL_UART_STATE_READY)
-            {
-                int count = termPc2MCU.cbOutput.count;
-                if (count > UART1_TX_BUFFER_SIZE) count = UART1_TX_BUFFER_SIZE;
-                CBUFF_getFirstNBytes(&termPc2MCU.cbOutput,
-                                     (char *)uart1TxBuffer, count);
-                // transmit uart 1
-                HAL_UART_Transmit(&huart1, (unsigned char *)uart1TxBuffer,
-                                  count, 100);
-            }
-        }
+
+        // Отправка данных
+        _Main_SendTerminalData(&termDbg, &huart2, uart2TxBuffer, UART2_TX_BUFFER_SIZE);
+        _Main_SendTerminalData(&termPc2MCU, &huart1, uart1TxBuffer, UART1_TX_BUFFER_SIZE);
 
         // usart3 arinc-429 translate
-        if (uart3.newDataFlag)
-        {
-            char buffer[127] = {0};
-            char size = 127;
-            uart3.newDataFlag = 0;
-
-            ARINC429_Proto_InputPacket(uart3.buffer, uart3.bufferIndex,
-                                       &buffer[0], &size);
-            if (size > 0)
-            {
-                HAL_UART_Transmit(&huart3, &buffer[0], size, 100);
-            }
-        }
+        _Main_ARINC429_Cycle();
 
         // devices:
         STM32_process();
@@ -240,27 +222,7 @@ int main(void)
 
         ARINC429_process();
 
-        // check and reset uart1
-        if (huart1.RxState == HAL_UART_STATE_READY)
-        {
-            __HAL_UART_CLEAR_OREFLAG(&huart1);
-            if (HAL_UART_Receive_IT(&huart1, &uart1Recv, 1) != HAL_OK)
-                Error_Handler();
-        }  // */
-        // check and reset uart2
-        if (huart2.RxState == HAL_UART_STATE_READY)
-        {
-            __HAL_UART_CLEAR_OREFLAG(&huart2);
-            if (HAL_UART_Receive_IT(&huart2, &uart2Recv, 1) != HAL_OK)
-                Error_Handler();
-        }  // */
-        // check and reset uart3
-        if (huart3.RxState == HAL_UART_STATE_READY)
-        {
-            __HAL_UART_CLEAR_OREFLAG(&huart3);
-            if (HAL_UART_Receive_IT(&huart3, &uart3Recv, 1) != HAL_OK)
-                Error_Handler();
-        }  // */
+        UART_CheckErrors();
 
         // проверка наличия 12В и передергивание 28в и 3в (запаралелено)
         _Main_Check12VPower();
@@ -286,6 +248,61 @@ int main(void)
                             : 1);  // если свитч неисправен, он будет давать '0'
     }
 }  // main_end
+
+void _Main_ARINC429_Cycle(void) {
+    if (uart3.newDataFlag) {
+        char buffer[127] = {0};
+        uint8_t size = sizeof(buffer);  // 127
+
+        // Сбрасываем флаг перед обработкой
+        uart3.newDataFlag = 0;
+
+        // Формируем пакет
+        ARINC429_Proto_InputPacket(uart3.buffer, uart3.bufferIndex, buffer, &size);
+
+        // Отправляем, если есть данные
+        if (size > 0) {
+            HAL_UART_Transmit(&huart3, (uint8_t*)buffer, size, 100);
+        }
+    }
+}
+
+void UART_CheckErrors(void) {
+    // check and reset uart1
+    if (huart1.RxState == HAL_UART_STATE_READY)
+    {
+        __HAL_UART_CLEAR_OREFLAG(&huart1);
+        if (HAL_UART_Receive_IT(&huart1, &uart1Recv, 1) != HAL_OK)
+            Error_Handler();
+    }  // */
+
+    // check and reset uart2
+    if (huart2.RxState == HAL_UART_STATE_READY)
+    {
+        __HAL_UART_CLEAR_OREFLAG(&huart2);
+        if (HAL_UART_Receive_IT(&huart2, &uart2Recv, 1) != HAL_OK)
+            Error_Handler();
+    }  // */
+
+
+    // check and reset uart3
+    if (huart3.RxState == HAL_UART_STATE_READY)
+    {
+        __HAL_UART_CLEAR_OREFLAG(&huart3);
+        if (HAL_UART_Receive_IT(&huart3, &uart3Recv, 1) != HAL_OK)
+            Error_Handler();
+    }  // */
+}
+
+void _Main_SendTerminalData(TERMINAL_t* term, UART_HandleTypeDef* huart, 
+                     uint8_t* buffer, size_t buffer_size) {
+    if (term->cbOutput.count && huart->gState == HAL_UART_STATE_READY) {
+        int count = term->cbOutput.count;
+        if (count > buffer_size) count = buffer_size;
+        CBUFF_getFirstNBytes(&term->cbOutput, (char*)buffer, count);
+        HAL_UART_Transmit(huart, buffer, count, 100);
+    }
+}
 
 void _Main_System_Init(void)
 {
@@ -366,17 +383,21 @@ int _Main_SystemClock_Config(void)
 /// @brief    Переопределенный HAL-овский weak-колбэк на приём по UART
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
+    //Терминал ПК
     if (huart == &huart1)
     {
         TERMINAL_recvByte(&termPc2MCU, uart1Recv);
         HAL_UART_Receive_IT(&huart1, &uart1Recv, 1);
     }
+
+    //Терминал Debug
     else if (huart == &huart2)
     {
-        // printf ("%02X  %c", uart2Recv, uart2Recv);
         TERMINAL_recvByte(&termDbg, uart2Recv);
         HAL_UART_Receive_IT(&huart2, &uart2Recv, 1);
     }
+
+    //ARINC
     else if (huart == &huart3)
     {
         if (uart3Recv == (uint8_t)0xBE || uart3Recv == (uint8_t)0xCE)
@@ -479,7 +500,7 @@ void _Main_Init_Peripherals(void)
     MX_TIM12_Init();
 }
 
-static void W25Q32_Flash_Init(SPI_HandleTypeDef *hspi, GPIO_TypeDef *GPIO_Port,
+static void _Main_W25Q32_Flash_Init(SPI_HandleTypeDef *hspi, GPIO_TypeDef *GPIO_Port,
                               uint16_t GPIO_Pin)
 {
     printf("W25Q32 init...\n");

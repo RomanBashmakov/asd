@@ -46,8 +46,6 @@ TTimer tmrPcRecvTimeoutDT;
 
 TTimer tmrSendTimeoutCh1;
 
-// char  pcCtrlConnected = 0;
-// char  pcDTConnected = 0;
 
 uint8_t txPacketARINC429_1[4] = {0300, 0x03, 0x00,
                                  0x60};  // предустановка отправляемых пакетов
@@ -273,23 +271,6 @@ void ARINC429_process()
         hi.pGPIO->PORT_int,
         hi.pGPIO->PIN_int);  // опрос вывода прерывания HI-3220 (by ZHuchenkov)
 
-    //  hi_MCR = HI3220_readReg(&hi, 0x8001);//DBG
-    //  hi_MSR = HI3220_readReg(&hi, 0x8002);//DBG
-    //  hi_RCV0 = HI3220_readReg(&hi, 0x8020);//DBG
-    //  hi_PIR4 = HI3220_readReg(&hi, 0x8004);//DBG
-    //  hi_PIRA = HI3220_readReg(&hi, 0x800A);//DBG
-    //  if(hi_PIR4 || hi_PIRA) {//DBG
-    //	  asm("nop");//DBG
-    //  }//DBG
-    //  if(hi_PIR4 && hi_PIRA) {//DBG
-    //	  asm("nop");//DBG
-    //  }//DBG
-    //  if(!hi_PIR4) {//DBG
-    //	  asm("nop");//DBG
-    //  }//DBG
-
-    // t = 0;
-
     if (t == 0)
     {
         // Send ACK (right here, immediate after INT - LV)
@@ -314,25 +295,17 @@ void ARINC429_process()
 
             if (count)
             {
-                //    	  if(count > 1) {//DBG
-                //    		  t = 0;//DBG
-                //    	  }//DBG
                 HI3220_readFIFO(&hi, 0 /* FIFO chan */, arincRecvBuffer, count);
 
                 char *p = (char *)arincRecvBuffer;
                 for (int i = 0; i < count; i++)
                 {
                     ARINC429_parseMessageCh1(p);
-                    //          npkts += count;//DBG
-                    //          npkts ++;//DBG
 
                     p += 4;
                 }
             }
         }
-        //    else{//DBG
-        //    	asm("nop");//DBG
-        //    }//DBG
 
         if ((reg & 0x02) == 0x02)
         {
@@ -355,13 +328,6 @@ void ARINC429_process()
                 }
             }
         }
-
-        //    // distort ACK
-        //    HAL_GPIO_WritePin(hi.pGPIO->PORT_ack, hi.pGPIO->PIN_ack,
-        //    GPIO_PIN_RESET); asm("nop"); asm("nop"); asm("nop"); asm("nop");
-        //    asm("nop");
-        //    HAL_GPIO_WritePin(hi.pGPIO->PORT_ack, hi.pGPIO->PIN_ack,
-        //    GPIO_PIN_SET);
     }
 
     // Формирование и отправка ARINC с лейблом 0300
@@ -457,9 +423,6 @@ void ARINC429_process()
 
         HI3220_transmitDirect(&hi, 0, ARINC_Word_300.arinc_array, 1);
     }
-
-    //  HAL_GPIO_WritePin(hi.pGPIO->PORT_run, hi.pGPIO->PIN_run, GPIO_PIN_SET);
-    //  	  HI_RUN_UP;	// LV: ???????????
 
     // process send to uart3
     if (huart3.gState == HAL_UART_STATE_READY)
