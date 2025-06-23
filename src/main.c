@@ -93,9 +93,15 @@ void _Main_SendTerminalData(TERMINAL_t* term, UART_HandleTypeDef* huart,
 /// @retval  None
 void UART_CheckErrors(void);
 
-/// @brief   Функция обработки ARINC-429
+/// @brief   Функция обработки ARINC-429 по UART3
+/// @details используется ВЕРОЯТНО для эмуляции ARINC-429 при отсутствии HI-3220.
 /// @retval  None
-void _Main_ARINC429_Cycle(void);
+void _Main_ARINC429_process_UART(void);
+
+/// @brief   Определяет выбранный канал камеры по положению переключателя
+/// @details Старшие 2 бита MCP23008 игнорируются, так как они жестко подключены к +V
+/// @retval  Номер канала (0-CHANNELS_TOTAL-1)
+uint8_t _Main_ReadCameraSelector(void);
 
 /// @brief   Версия и дата сборки прошивки
 const char strVersionDT[] = "IL114  22.07.22  20:38";
@@ -204,19 +210,17 @@ int main(void)
 
     while (1)
     {
-
         TERMINAL_process(&termDbg);
         TERMINAL_process(&termPc2MCU);
 
-        // Отправка данных
         _Main_SendTerminalData(&termDbg, &huart2, uart2TxBuffer, UART2_TX_BUFFER_SIZE);
         _Main_SendTerminalData(&termPc2MCU, &huart1, uart1TxBuffer, UART1_TX_BUFFER_SIZE);
 
-        // usart3 arinc-429 translate
-        _Main_ARINC429_Cycle();
+        // usart3 -> ARINC429
+        _Main_ARINC429_process_UART();
 
         // devices:
-        STM32_process();
+        ADC_process();
 
         POWER_process();
 
@@ -228,28 +232,39 @@ int main(void)
         _Main_Check12VPower();
 
         // Опрос переключателя выбора камеры и перевод в номер выбранной камеры
-        sw_pos__ = MCP23008_Read_Reg(&ic_mcp23008, 9) &
-                   0x3F;  // старшие два бита MCP23008 жестко сидят на +V
-
-        u8_t ch_no;
-        for (ch_no = 0; ch_no < CHANNELS_TOTAL; ch_no++)
-        {
-            if (sw_pos__ & 0x01) break;
-            sw_pos__ >>= 1;
-        }
 
         // Номер камеры передается как от 1-й до 6-й,
         // если камера не выбрана (напр. сломан переключатель) - будет передан 0
         // - признак неисправности
-        SetChannelNo(ch_no);
+        SetChannelNo(_Main_ReadCameraSelector);
 
         SYSTEM_Status.cam_switch_fault =
             (GetChannelNo() ? 0
                             : 1);  // если свитч неисправен, он будет давать '0'
     }
-}  // main_end
+}
 
-void _Main_ARINC429_Cycle(void) {
+
+//=================================================================================
+uint8_t _Main_ReadCameraSelector(void) {
+    const uint8_t REGISTER = 9;
+    const uint8_t MASK = 0x3F;
+    
+    // Читаем текущее положение переключателя
+    uint8_t switch_position = MCP23008_Read_Reg(&ic_mcp23008, REGISTER) & MASK;
+    
+    // Определяем первый установленный бит (выбранный канал)
+    for(uint8_t channel = 0; channel < CHANNELS_TOTAL; channel++) {
+        if(switch_position & 0x01) {
+            return channel;
+        }
+        switch_position >>= 1;
+    }
+    
+    return 0; // Значение по умолчанию, если ни один канал не выбран
+}
+
+void _Main_ARINC429_process_UART(void) {
     if (uart3.newDataFlag) {
         char buffer[127] = {0};
         uint8_t size = sizeof(buffer);  // 127
