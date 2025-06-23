@@ -143,9 +143,6 @@ TTimer tmrDebug;
 /// @retval  Возвращает 0
 int main(void)
 {
-    /// @brief   позиции переключателя
-    u8_t sw_pos__;
-
     HAL_Init();
 
     _Main_SystemClock_Config();
@@ -216,14 +213,14 @@ int main(void)
         _Main_SendTerminalData(&termDbg, &huart2, uart2TxBuffer, UART2_TX_BUFFER_SIZE);
         _Main_SendTerminalData(&termPc2MCU, &huart1, uart1TxBuffer, UART1_TX_BUFFER_SIZE);
 
-        // usart3 -> ARINC429
-        _Main_ARINC429_process_UART();
 
         // devices:
         ADC_process();
 
         POWER_process();
 
+        // usart3 -> ARINC429
+        _Main_ARINC429_process_UART();
         ARINC429_process();
 
         UART_CheckErrors();
@@ -276,6 +273,7 @@ void _Main_ARINC429_process_UART(void) {
         ARINC429_Proto_InputPacket(uart3.buffer, uart3.bufferIndex, buffer, &size);
 
         // Отправляем, если есть данные
+
         if (size > 0) {
             HAL_UART_Transmit(&huart3, (uint8_t*)buffer, size, 100);
         }

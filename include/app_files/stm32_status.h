@@ -79,7 +79,7 @@ void  STM32_setSheduleEraseW25Q32 (void);
 void  STM32_setSheduleUpdateFlashStm32 (uint32_t size);
 uint32_t  STM32_getLastLogNum (void);
 uint32_t  STM32_getStm32UpdateFlashSize (void);
-void  STM32_process (void);
+void  ADC_process (void);
 
 
 #endif /* INC_STM32_STATUS_H_ */
