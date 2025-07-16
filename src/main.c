@@ -150,7 +150,7 @@ int main(void)
 
     TERMINAL_init(&termDbg);
     TERMINAL_init(&termPc2MCU);
-
+    
     TIMERS_setTimer(&tmrDebug, 30000);
 
     _Main_W25Q32_Flash_Init(&hspi1, GPO_nvm_ncs_GPIO_Port, GPO_nvm_ncs_Pin);
@@ -212,7 +212,6 @@ int main(void)
 
         _Main_SendTerminalData(&termDbg, &huart2, uart2TxBuffer, UART2_TX_BUFFER_SIZE);
         _Main_SendTerminalData(&termPc2MCU, &huart1, uart1TxBuffer, UART1_TX_BUFFER_SIZE);
-
 
         // devices:
         ADC_process();
@@ -501,9 +500,9 @@ void _Main_Init_Peripherals(void)
     MX_GPIO_Init();
     MX_DMA_Init();
     MX_SPI1_Init();
+    MX_SPI2_Init();
     MX_SPI3_Init();
     MX_I2C1_Init();
-    MX_SPI2_Init();
     MX_ADC1_Init();
     MX_RTC_Init();
     MX_I2C4_Init();

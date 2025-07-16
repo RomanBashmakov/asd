@@ -1,9 +1,5 @@
-/*
- * Hi3220_lib.c
- *
- *  Created on: Jun 17, 2020
- *      Author: zhuchenkovao
- */
+/// @file    Hi3220_lib.c
+/// @brief   
 
 #include "Hi3220_lib.h"
 

@@ -72,32 +72,33 @@ Linux_Status_t Linux_Status;
 //==================================================================
 void ARINC429_init(SPI_HandleTypeDef *hspi)
 {
-    // init HI3220
-    hiPins.PORT_mrst = GPO_ar429_rstn_GPIO_Port;
-    hiPins.PIN_mrst = GPO_ar429_rstn_Pin;
-
-    hiPins.PORT_ready = GPI_ar429_ready_GPIO_Port;
-    hiPins.PIN_ready = GPI_ar429_ready_Pin;
-
-    hiPins.PORT_run = GPO_ar429_run_GPIO_Port;
-    hiPins.PIN_run = GPO_ar429_run_Pin;
-
-    hiPins.PORT_int = GPI_ar429_intn_GPIO_Port;
-    hiPins.PIN_int = GPI_ar429_intn_Pin;
-
-    hiPins.PORT_ack = GPO_ar429_ack_GPIO_Port;
-    hiPins.PIN_ack = GPO_ar429_ack_Pin;
-
-    hiPins.PORT_cs = GPO_ar429_csn_GPIO_Port;
-    hiPins.PIN_cs = GPO_ar429_csn_Pin;
-
-    // инвертировано для оптопары
-    HAL_GPIO_WritePin(GPO_ar429_rstn_GPIO_Port, GPO_ar429_rstn_Pin,
-                      GPIO_PIN_SET);
-    HAL_Delay(10);
-    HAL_GPIO_WritePin(GPO_ar429_rstn_GPIO_Port, GPO_ar429_rstn_Pin,
-                      GPIO_PIN_RESET);
-    HI3220_init(&hi, &hiPins, hspi);
++    // init HI3220
++    hiPins.PORT_mrst = GPO_ar429_rstn_GPIO_Port;
++    hiPins.PIN_mrst = GPO_ar429_rstn_Pin;
++
++    hiPins.PORT_ready = GPI_ar429_ready_GPIO_Port;
++    hiPins.PIN_ready = GPI_ar429_ready_Pin;
++
++    hiPins.PORT_run = GPO_ar429_run_GPIO_Port;
++    hiPins.PIN_run = GPO_ar429_run_Pin;
++
++    hiPins.PORT_int = GPI_ar429_intn_GPIO_Port;
++    hiPins.PIN_int = GPI_ar429_intn_Pin;
++
++    hiPins.PORT_ack = GPO_ar429_ack_GPIO_Port;
++    hiPins.PIN_ack = GPO_ar429_ack_Pin;
++
++    hiPins.PORT_cs = GPO_ar429_csn_GPIO_Port;
++    hiPins.PIN_cs = GPO_ar429_csn_Pin;
++
++    // инвертировано для оптопары
++    HAL_GPIO_WritePin(GPO_ar429_rstn_GPIO_Port, GPO_ar429_rstn_Pin,
++                     GPIO_PIN_SET);
++    HAL_Delay(10);
++    HAL_GPIO_WritePin(GPO_ar429_rstn_GPIO_Port, GPO_ar429_rstn_Pin,
++                      GPIO_PIN_RESET);
++
++    HI3220_init(&hi, &hiPins, hspi);
 
     // начало теста внутренней пямяти:
     // чтение и вывод текущего режима
