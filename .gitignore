@@ -1,6 +1,19 @@
+<<<<<<< HEAD
 *.zip
 Debug
 *.launch
 .metadata
 .vscode
 build/
+=======
+*.zip
+Debug
+*.launch
+.metadata
+html/
+latex/
+.vscode/
+.blackboxrules
+literature/
+build/
+>>>>>>> 418bb1d (Added cmakelist.txt, build.sh, FLASH.ld)
