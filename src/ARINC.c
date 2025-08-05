@@ -85,16 +85,6 @@ int ARINC_Configuration(SPI_HandleTypeDef *SPI_Handle_Ptr, SPI_HandleTypeDef *SP
     Tool_HI3220_Self_Test();
 
     Tool_Circular_Buffer_Init(&ARINC_UART_Output_Circular_Buffer[0], ARINC_TX_Buffer, ARINC_UART_OUTPUT_BUFFER_LENGTH);
-
-    TIMERS_setTimer(&tmrRecvTimeoutXAE21, XAE21_TIMEOUT);
-    TIMERS_setTimer(&tmrRecvTimeoutCh2, 5000);
-
-    TIMERS_setTimer(&tmrPcRecvTimeoutCtrl, SVR_TIMEOUT);
-    TIMERS_setTimer(&tmrPcRecvTimeoutDT, SVR_TIMEOUT);
-
-    TIMERS_setTimer(&tmrSendTimeoutCh1,
-                    A429_L0300_SEND_PERIOD);  // отправка по первому каналу
-                                              // ARINC в интервале 1с
 }
 
 void ARINC_HI3220_Write_Pin(const Tool_HI3220_Pin_Enum Pin, const Tool_Common_Pin_State_Enum State)
