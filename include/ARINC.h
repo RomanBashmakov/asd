@@ -2,8 +2,8 @@
 /// @author     Башмаков Р.А. bashmakovra@raitibor.ru
 /// @brief      Заголовочный файл, содержащий объявления модуля для работы по протоколу ARINC
 /// @details    Порядок работы с модулем: <br>
-///                 1) <br>
-///                 2) <br>
+///                 1) Конфигурировать ARINC (см. ARINC_Configuration())<br>
+///                 2) Периодически в основном цикле вызывать функции <br>
 ///                 3) <br>
 /// @note       HI3220 подключен через SPI2
 ///             Для работы с HI3220 задействованы 9 выводов МК
@@ -71,15 +71,6 @@ typedef union Tool_ARINC429_Word_Union
 
 #pragma pack(pop)
 
-//перенести в c
-/// @brief  Структура с описанием одного GPIO пина ARINC
-typedef struct
-{
-    GPIO_TypeDef *Port;       ///< Аппаратный порт GPIO
-    uint16_t      Pin;        ///< Номер пина GPIO
-    uint8_t       IsInverted; ///< "1" если пин инвертированный
-} ARINC_Pin_Struct;
-
 /// @brief      Функция инициализации модуля
 /// @details    Конфигурирует HI-3220, включает его и настраивает порты
 /// @param[in]  TX_Ptr    Указатель на функцию передачи данных  (См. Tool_HI3220_SPI_TX())
@@ -91,37 +82,5 @@ typedef struct
 /// @return     Возвращает TOOLS_ERROR_CODE_ALL_OK в случае успешного выполнения функции.
 ///                 В противном случае, возвращает код ошибки
 int ARINC_Configuration(SPI_HandleTypeDef *SPI_Handle_Ptr, SPI_HandleTypeDef *SPI_Handle_Black_Box_Ptr)
-
-/// @brief      Функция записи на цифровой вывод МК
-/// @param[in]  Pin_Id Вывод МК, подключенного к HI3220 (см. Tool_HI3220_Pin_Enum)
-/// @param[in]  State  Устанавливаемое значение (см. Tool_Common_Pin_State_Enum)
-/// @warning    READY и INT только для чтения
-/// @return     Возвращает TOOLS_ERROR_CODE_ALL_OK в случае успешного выполнения функции.
-///                 В противном случае, возвращает код ошибки
-void ARINC_HI3220_Write_Pin(const Tool_HI3220_Pin_Enum Pin_Id, const Tool_Common_Pin_State_Enum State);
-                          
-/// @brief      Функция чтения цифрового вывода МК
-/// @param[in]  Pin_Id Вывод МК, подключенный к HI3220 (см. Tool_HI3220_Pin_Enum)
-/// @return     Текущее значение на указанном выводе МК (см. Tool_Common_Pin_State_Enum)
-Tool_Common_Pin_State_Enum ARINC_HI3220_Read_Pin(const Tool_HI3220_Pin_Enum Pin_Id);
-
-/// @brief      Функция конфигурации ARINC HI-3220 для текущего проекта
-/// @details    Поэтапная настройка работы с HI-3220:                                                                       <br>
-///                 - Проверка корректности внутренней конфигурации модуля                                                  <br>
-///                 - Чтение и вывод регистра MCR (главного управляющего регистра)                                          <br>
-///                 - Включение модулей приёма и передачи ARINC 429 (MCR A429RX/AX29TX=1)                                   <br>
-///                 - Конфигурирование передающих каналов (ATXC0, ATXC1): формат, скорость 12.5кбит/с, включение паритета   <br>
-///                 - Конфигурирование приёмных каналов (ARXC0, ARXC1): включение, скорость 12.5кбит/с, паритет             <br>
-///                 - Отладочное считывание и вывод настроек каналов ARXC0 и ARXC1                                          <br>
-///                 - Настройка Processor Interrupt Enable Register (PIER): разрешение INT по новому слову в RXRAM2         <br>
-///                 - Отладочное считывание и вывод значения PIER                                                           <br>
-///                 - Разрешение приёмных прерываний на RX0 и RX1 (RIERL), считывание и вывод                               <br>
-///                 - Инициализация карт разрешения приёма меток (Label Enable Maps, RXEN_MAP): разрешить все метки         <br>
-///                 - Инициализация карт разрешения прерываний по меткам (RXINT_MAP): разрешить все метки                   <br>
-///             Все значения и маски формируются через специализированные структуры/union.                                  <br>
-/// @see        Адресация, структура регистров и области памяти в соответствии с стр. 13–17, 23–24
-/// @return     Возвращает TOOLS_ERROR_CODE_ALL_OK в случае успешного выполнения функции.
-///                 В противном случае, возвращает код ошибки
-int ARINC_HI3220_Configuration(void);
 
 #endif

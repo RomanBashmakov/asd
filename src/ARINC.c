@@ -6,6 +6,30 @@
 
 #include "Tool_HI3220.h"
 
+/// @brief Порт и пин RX (порт B, пин 12)
+#define ARINC_PINS_RX    GPIOB, GPIO_PIN_12
+
+/// @brief Порт и пин TX (порт A, пин 1)
+#define ARINC_PINS_TX    GPIOA, GPIO_PIN_1
+
+/// @brief Порт и пин MRST (порт C, пин 0)
+#define ARINC_PINS_MRST  GPIOC, GPIO_PIN_0
+
+/// @brief Порт и пин READY (порт C, пин 1)
+#define ARINC_PINS_READY GPIOC, GPIO_PIN_1
+
+/// @brief Порт и пин RUN (порт B, пин 5)
+#define ARINC_PINS_RUN   GPIOB, GPIO_PIN_5
+
+/// @brief Порт и пин INT (порт B, пин 6)
+#define ARINC_PINS_INT   GPIOB, GPIO_PIN_6
+
+/// @brief Порт и пин ACK (порт A, пин 8)
+#define ARINC_PINS_ACK   GPIOA, GPIO_PIN_8
+
+/// @brief Порт и пин CS (порт A, пин 9)
+#define ARINC_PINS_CS    GPIOA, GPIO_PIN_9
+
 /// @brief      Период передачи пакета по ARINC 429
 #define Tool_ARINC_A429_L0300_SEND_PERIOD 500
 
@@ -22,7 +46,7 @@ typedef enum ARINC_HI3220_GPO_Enum
     Tool_HI3220_GPO_RUN,      ///< Пин запуска
     Tool_HI3220_GPO_ACK,      ///< Пин подтверждения
     Tool_HI3220_GPO_CS,       ///< Пин выбора чипа
-    Tool_HI3220_GPO_Count     ///< Количество пинов интерфейса HI3220
+    ARINC_HI3220_GPO_COUNT     ///< Количество пинов интерфейса HI3220
 } ARINC_HI3220_GPO_Enum;
 
 /// @brief      Перечисление входных пинов HI3220
@@ -30,7 +54,7 @@ typedef enum ARINC_HI3220_GPI_Enum
 {
     Tool_HI3220_GPI_READY = 0,  ///< Пин готовности (только для чтения)
     Tool_HI3220_GPI_INT,        ///< Пин прерывания (только для чтения)
-    Tool_HI3220_GPI_Count       ///< Количество пинов интерфейса HI3220
+    ARINC_HI3220_GPI_COUNT       ///< Количество пинов интерфейса HI3220
 } ARINC_HI3220_GPI_Enum;
 
 /// @brief      Пин использует инвертированную логику
@@ -39,23 +63,31 @@ typedef enum ARINC_HI3220_GPI_Enum
 /// @brief      Пин использует неинвертированную логику
 #define TOOL_HI3220_PIN_INVERTED        1
 
-/// @brief      Перечисление режимов инвертирования пинов HI3220
-typedef enum Tool_HI3220_Pin_Inverted_Enum
+/// @brief  Структура с описанием одного GPIO пина ARINC
+typedef struct ARINC_Pin_Struct
 {
-    TOOL_HI3220_PIN_INVERTED_OFF = 0,   ///< Пин не инвертирован
-    TOOL_HI3220_PIN_INVERTED_ON,        ///< Пин инвертирован
-} Tool_HI3220_Pin_Inverted_Enum;
+    GPIO_TypeDef *Port;       ///< Аппаратный порт GPIO
+    uint16_t      Pin;        ///< Номер пина GPIO
+    uint8_t       IsInverted; ///< "1" если пин инвертированный
+} ARINC_Pin_Struct;
+
+/// @brief      Перечисление режимов инвертирования пинов HI3220
+typedef enum ARINC_Pin_Inverted_Enum
+{
+    ARINC_HI3220_PIN_INVERTED_OFF = 0,   ///< Пин не инвертирован
+    ARINC_HI3220_PIN_INVERTED_ON,        ///< Пин инвертирован
+} ARINC_Pin_Inverted_Enum;
 
 /// @brief      Список выходных пинов
 /// @warning    Порядок элементов в Tool_HI3220_Pin_Enum и порядок инициализации структур в массиве ARINC_GPO_Pins_Map <br>
 ///                 должны быть строго идентичны, иначе прозойдет ошибочное управление ложным пином <br>
 ///                 в ARINC_HI3220_Write_Pin/ARINC_HI3220_Read_Pin <br>
 ///                 Программа будет работать некорректно, но никаких ошибок при компиляции при этом не будет
-static const ARINC_Pin_Struct ARINC_GPO_Pins_Map[Tool_HI3220_GPO_Count] = {
-    {ARINC_PINS_MRST, TOOL_HI3220_PIN_INVERTED_ON},
-    {Tool_HI3220_GPO_RUN,  TOOL_HI3220_PIN_INVERTED_OFF},
-    {ARINC_PINS_ACK,  TOOL_HI3220_PIN_INVERTED_OFF},
-    {ARINC_PINS_CS,   TOOL_HI3220_PIN_INVERTED_ON}
+static const ARINC_Pin_Struct ARINC_GPO_Pins_Map[ARINC_HI3220_GPO_COUNT] = {
+    {ARINC_PINS_MRST, ARINC_HI3220_PIN_INVERTED_ON},
+    {ARINC_PINS_RUN,  ARINC_HI3220_PIN_INVERTED_OFF},
+    {ARINC_PINS_ACK,  ARINC_HI3220_PIN_INVERTED_OFF},
+    {ARINC_PINS_CS,   ARINC_HI3220_PIN_INVERTED_ON}
 };
 
 /// @brief      Список входных пинов
@@ -63,13 +95,45 @@ static const ARINC_Pin_Struct ARINC_GPO_Pins_Map[Tool_HI3220_GPO_Count] = {
 ///                 должны быть строго идентичны, иначе прозойдет ошибочное управление ложным пином <br>
 ///                 в ARINC_HI3220_Write_Pin/ARINC_HI3220_Read_Pin <br>
 ///                 Программа будет работать некорректно, но никаких ошибок при компиляции при этом не будет
-static const ARINC_Pin_Struct ARINC_GPI_Pins_Map[Tool_HI3220_GPI_Count] = {
-    {ARINC_PINS_READY, TOOL_HI3220_PIN_INVERTED_OFF},
-    {ARINC_PINS_INT,   TOOL_HI3220_PIN_INVERTED_OFF}
+static const ARINC_Pin_Struct ARINC_GPI_Pins_Map[ARINC_HI3220_GPI_COUNT] = {
+    {ARINC_PINS_READY, ARINC_HI3220_PIN_INVERTED_OFF},
+    {ARINC_PINS_INT,   ARINC_HI3220_PIN_INVERTED_OFF}
 };
 
 Tool_Common_Circular_Buffer_Struct ARINC_UART_Output_Circular_Buffer;
 uint8_t ARINC_TX_Buffer[ARINC_UART_OUTPUT_BUFFER_LENGTH];
+
+/// @brief      Функция записи на цифровой вывод МК
+/// @param[in]  Pin_Id Вывод МК, подключенного к HI3220 (см. Tool_HI3220_Pin_Enum)
+/// @param[in]  State  Устанавливаемое значение (см. Tool_Common_Pin_State_Enum)
+/// @warning    READY и INT только для чтения
+/// @return     Возвращает TOOLS_ERROR_CODE_ALL_OK в случае успешного выполнения функции.
+///                 В противном случае, возвращает код ошибки
+void ARINC_HI3220_Write_Pin(const Tool_HI3220_Pin_Enum Pin_Id, const Tool_Common_Pin_State_Enum State);
+                          
+/// @brief      Функция чтения цифрового вывода МК
+/// @param[in]  Pin_Id Вывод МК, подключенный к HI3220 (см. Tool_HI3220_Pin_Enum)
+/// @return     Текущее значение на указанном выводе МК (см. Tool_Common_Pin_State_Enum)
+Tool_Common_Pin_State_Enum ARINC_HI3220_Read_Pin(const Tool_HI3220_Pin_Enum Pin_Id);
+
+/// @brief      Функция конфигурации ARINC HI-3220 для текущего проекта
+/// @details    Поэтапная настройка работы с HI-3220:                                                                       <br>
+///                 - Проверка корректности внутренней конфигурации модуля                                                  <br>
+///                 - Чтение и вывод регистра MCR (главного управляющего регистра)                                          <br>
+///                 - Включение модулей приёма и передачи ARINC 429 (MCR A429RX/AX29TX=1)                                   <br>
+///                 - Конфигурирование передающих каналов (ATXC0, ATXC1): формат, скорость 12.5кбит/с, включение паритета   <br>
+///                 - Конфигурирование приёмных каналов (ARXC0, ARXC1): включение, скорость 12.5кбит/с, паритет             <br>
+///                 - Отладочное считывание и вывод настроек каналов ARXC0 и ARXC1                                          <br>
+///                 - Настройка Processor Interrupt Enable Register (PIER): разрешение INT по новому слову в RXRAM2         <br>
+///                 - Отладочное считывание и вывод значения PIER                                                           <br>
+///                 - Разрешение приёмных прерываний на RX0 и RX1 (RIERL), считывание и вывод                               <br>
+///                 - Инициализация карт разрешения приёма меток (Label Enable Maps, RXEN_MAP): разрешить все метки         <br>
+///                 - Инициализация карт разрешения прерываний по меткам (RXINT_MAP): разрешить все метки                   <br>
+///             Все значения и маски формируются через специализированные структуры/union.                                  <br>
+/// @see        Адресация, структура регистров и области памяти в соответствии с стр. 13–17, 23–24
+/// @return     Возвращает TOOLS_ERROR_CODE_ALL_OK в случае успешного выполнения функции.
+///                 В противном случае, возвращает код ошибки
+int ARINC_HI3220_Configuration(void);
 
 int ARINC_Configuration(SPI_HandleTypeDef *SPI_Handle_Ptr, SPI_HandleTypeDef *SPI_Handle_Black_Box_Ptr)
 {
@@ -97,7 +161,7 @@ void ARINC_HI3220_Write_Pin(const Tool_HI3220_Pin_Enum Pin, const Tool_Common_Pi
         return;
     }
 
-    if (ARINC_Pins_List[Pin].IsInverted == TOOL_HI3220_PIN_INVERTED_ON)
+    if (ARINC_Pins_List[Pin].IsInverted == ARINC_HI3220_PIN_INVERTED_ON)
     {
         Final_State = (State == Tool_Common_Pin_State_High) ? Tool_Common_Pin_State_Low : Tool_Common_Pin_State_High;
     }
