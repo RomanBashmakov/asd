@@ -1,56 +1,56 @@
-# Building STM32 Router with CMake
+# Сборка STM32 Router с CMake
 
 ## Prerequisites
 - ARM GCC Toolchain (arm-none-eabi-gcc)
 - CMake 3.16 or higher
 - Make or Ninja build system
 
-## Quick Build
+## Автоматизированная сборка (скриптом)
 
 ```bash
-# Make the build script executable (first time only)
+# Сделать скрипт сборки исполняемым (только первый раз)
 chmod +x build.sh
 
-# Build the project
+# Собрать проект
 ./build.sh
 ```
 
-## Manual Build
+## Ручная сборка
 
 ```bash
-# Create build directory
+# Создать каталог сборки
 mkdir build
 cd build
 
-# Configure (Debug build)
+# Конфигурация (сборка Debug)
 cmake .. -DCMAKE_BUILD_TYPE=Debug
 
-# Build
+# Сборка
 make -j$(nproc)
 ```
 
-## Build Outputs
-- `STM32_Router.elf` - Debug ELF file
-- `STM32_Router.hex` - Intel HEX format for flashing
-- `STM32_Router.bin` - Binary format for flashing
-- `STM32_Router.map` - Linker map file
+## Выходные файлы сборки
+- `STM32_Router.elf` - Отладочный ELF-файл
+- `STM32_Router.hex` - Формат Intel HEX для прошивки
+- `STM32_Router.bin` - Бинарный формат для прошивки
+- `STM32_Router.map` - Карта линковщика (linker map)
 
-## Checking for Errors
-The build will fail if there are any compilation errors. Check the output for:
-- Syntax errors
-- Missing includes
-- Undefined symbols
-- Type mismatches
+## Проверка на ошибки
+Сборка не будет успешной при наличии ошибок компиляции. Проверьте вывод на предмет:
+- Синтаксических ошибок
+- Отсутствующих include-файлов
+- Неопределённых символов
+- Несоответствий типов
 
-## Flashing (with OpenOCD)
+## Прошивка (с использованием OpenOCD)
 ```bash
 openocd -f interface/stlink.cfg -f target/stm32f7x.cfg -c "program STM32_Router.elf verify reset exit"
 ```
 
-## Build Configuration
-- Target: STM32F745VETx
-- CPU: Cortex-M7
+## Конфигурация сборки
+- Цель: STM32F745VETx
+- Процессор: Cortex-M7
 - FLASH: 512KB (0x08000000)
-- RAM: 256KB (0x20000000)
+- ОЗУ: 256KB (0x20000000)
 - FPU: FPv5-D16
-- Floating point: hard
+- Плавающая точка: аппаратная (hard)

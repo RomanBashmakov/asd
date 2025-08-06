@@ -15,7 +15,8 @@
 #include <string.h>
 #include <stdint.h>
 
-#include "spi.h"
+//TODO добавить файл с функциями прослойками с рабочего компа
+// #include "spi.h"
 #include "stm32f7xx_hal.h"
 
 /// @brief   Структура Сервера Накопителя и Сервера Маршрутизатора

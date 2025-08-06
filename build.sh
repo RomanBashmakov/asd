@@ -1,27 +1,50 @@
 #!/bin/bash
 
-# Build script for STM32 Router project
+# Скрипт сборки для проекта STM32 Router
 
+#Папка с результатами
 BUILD_DIR="build"
-TOOLCHAIN_PATH="/usr/local/bin"  # Adjust this to your ARM toolchain path
 
-# Create build directory
+# Путь к тулчейну
+TOOLCHAIN_PATH="/usr/local/bin"  
+
+#Необходимые пакеты
+REQUIRED_PKGS=("cmake" "make" "arm-none-eabi-gcc")
+
+# Проверка необходимых пакетов
+MISSING_PKGS=()
+for pkg in "${REQUIRED_PKGS[@]}"; do
+    if ! command -v "$pkg" >/dev/null 2>&1; then
+        MISSING_PKGS+=("$pkg")
+    fi
+done
+
+if [ ${#MISSING_PKGS[@]} -ne 0 ]; then
+    echo "Ошибка: не найдены необходимые пакеты:"
+    for pkg in "${MISSING_PKGS[@]}"; do
+        echo "  - $pkg"
+    done
+    echo "Пожалуйста, установите недостающие пакеты и попробуйте снова."
+    exit 2
+fi
+
+# Создать каталог для сборки
 mkdir -p $BUILD_DIR
 cd $BUILD_DIR
 
-# Configure
+# Конфигурация
 cmake .. -DCMAKE_BUILD_TYPE=Debug
 
-# Build
+# Сборка
 make -j$(nproc)
 
-# Check if build succeeded
+# Проверка успешности сборки
 if [ $? -eq 0 ]; then
-    echo "Build successful!"
-    echo "Files created:"
-    ls -la *.elf *.hex *.bin 2>/dev/null || echo "No output files found"
+    echo "Сборка прошла успешно!"
+    echo "Созданные файлы:"
+    ls -la *.elf *.hex *.bin 2>/dev/null || echo "Выходные файлы не найдены"
 else
-    echo "Build failed! Check the error messages above."
+    echo "Сборка не удалась! Проверьте сообщения об ошибках выше."
     exit 1
 fi
 
