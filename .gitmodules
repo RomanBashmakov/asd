@@ -1,0 +1,3 @@
+[submodule "Libs/tools"]
+	path = Libs/tools
+	url = git@gitlab.byterg.ru:airplanes/air_acs/tools.git
