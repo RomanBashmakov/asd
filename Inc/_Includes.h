@@ -12,6 +12,7 @@
 
 #include <Tools_Error_Codes.h>
 #include "Tool_Common.h"
+#include <ARINC.h>
 #include <_Main.h>
 
 #endif

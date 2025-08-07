@@ -19,42 +19,43 @@ int main(void)
 {
     int Result = TOOLS_ERROR_CODE_ALL_OK;
 
-    _Main_Critical_Error_Handler(HAL_Init());
-
-    Result += _Main_Clock_Configuration();
     Result += _Main_GPIO_Configuration();
-    Result += _Main_SPI_1_Configuration();
-    Result += _Main_SPI_2_Configuration();
-    Result += _Main_SPI_3_Configuration();
-    Result += _Main_I2C_1_Configuration();
-    Result += _Main_I2C_4_Configuration();
-    Result += _Main_ADC1_Configuration();
-    Result += _Main_RTC_Configuration();
-    Result += _Main_USART_UART_1_Configuration();
-    Result += _Main_USART_UART_2_Configuration();
-    Result += _Main_USART_UART_3_Configuration();
-    Result += _Main_TIM_12_Configuration();// + TIMERS_setTimer
+    
+    // _Main_Critical_Error_Handler(HAL_Init());
 
-    HAL_Delay(1000);
+    // Result += _Main_Clock_Configuration();
+    // Result += _Main_SPI_1_Configuration();
+    // Result += _Main_SPI_2_Configuration();
+    // Result += _Main_SPI_3_Configuration();
+    // Result += _Main_I2C_1_Configuration();
+    // Result += _Main_I2C_4_Configuration();
+    // Result += _Main_ADC1_Configuration();
+    // Result += _Main_RTC_Configuration();
+    // Result += _Main_USART_UART_1_Configuration();
+    // Result += _Main_USART_UART_2_Configuration();
+    // Result += _Main_USART_UART_3_Configuration();
+    // Result += _Main_TIM_12_Configuration();// + TIMERS_setTimer
 
-    Result += _Main_Parameters_Read();
-    Result += _Main_TERMINAL_init();
-    Result += _Main_W25Q32_Flash_Init();
+    // HAL_Delay(1000);
 
-    Result += HI3220_Configuration_MW();
+    // Result += _Main_Parameters_Read();
+    // Result += _Main_TERMINAL_init();
+    // Result += _Main_W25Q32_Flash_Init();
 
-    Result += _Main_Critical_Error_Handler(Result);
+    // Result += HI3220_Configuration_MW();
+
+    // Result += _Main_Critical_Error_Handler(Result);
 
     while (1)
     {
-        ARINC_Handler();
+        // ARINC_Handler();
 
-        if (Status_Control == Control_State_Error)
-        {
-            ARINC_Set_Error_Maint_SW();
-        }
+        // if (Status_Control == Control_State_Error)
+        // {
+        //     ARINC_Set_Error_Maint_SW();
+        // }
 
-        ARINC_Process();
+        // ARINC_Process();
     }
 
     return 0;

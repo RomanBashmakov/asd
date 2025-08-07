@@ -5,30 +5,31 @@
 #include "ARINC.h"
 
 #include "Tool_HI3220.h"
+#include "Circular_Buffer.h"
 
-/// @brief Порт и пин RX (порт B, пин 12)
-#define ARINC_PIN_RX    GPIOB, GPIO_PIN_12
+/// @brief Порт и пин RX
+#define ARINC_PIN_RX    GPIOD, GPIO_PIN_8    // mcu2pc_Pin
 
-/// @brief Порт и пин TX (порт A, пин 1)
-#define ARINC_PIN_TX    GPIOA, GPIO_PIN_1
+/// @brief Порт и пин TX
+#define ARINC_PIN_TX    GPIOD, GPIO_PIN_9    // pc2mcu_Pin
 
-/// @brief Порт и пин MRST (порт C, пин 0)
-#define ARINC_PIN_MRST  GPIOC, GPIO_PIN_0
+/// @brief Порт и пин MRST
+#define ARINC_PIN_MRST  GPIOD, GPIO_PIN_0    // GPO_ar429_rstn_Pin
 
-/// @brief Порт и пин READY (порт C, пин 1)
-#define ARINC_PIN_READY GPIOC, GPIO_PIN_1
+/// @brief Порт и пин READY
+#define ARINC_PIN_READY GPIOD, GPIO_PIN_4    // GPI_ar429_ready_Pin
 
-/// @brief Порт и пин RUN (порт B, пин 5)
-#define ARINC_PIN_RUN   GPIOB, GPIO_PIN_5
+/// @brief Порт и пин RUN
+#define ARINC_PIN_RUN   GPIOD, GPIO_PIN_1    // GPO_ar429_run_Pin
 
-/// @brief Порт и пин INT (порт B, пин 6)
-#define ARINC_PIN_INT   GPIOB, GPIO_PIN_6
+/// @brief Порт и пин INT
+#define ARINC_PIN_INT   GPIOD, GPIO_PIN_3    // GPI_ar429_intn_Pin
 
-/// @brief Порт и пин ACK (порт A, пин 8)
-#define ARINC_PIN_ACK   GPIOA, GPIO_PIN_8
+/// @brief Порт и пин ACK
+#define ARINC_PIN_ACK   GPIOD, GPIO_PIN_2    // GPO_ar429_ack_Pin
 
-/// @brief Порт и пин CS (порт A, пин 9)
-#define ARINC_PIN_CS    GPIOA, GPIO_PIN_9
+/// @brief Порт и пин CS
+#define ARINC_PIN_CS    GPIOB, GPIO_PIN_4    // GPO_ar429_csn_Pin
 
 /// @brief      Период передачи пакета по ARINC 429
 #define ARINC_A429_L0300_SEND_PERIOD 500
@@ -38,46 +39,6 @@
 
 /// @brief      Количество элементов в кольцевом буфере
 #define ARINC_UART_OUTPUT_BUFFER_LENGTH 200
-
-/// @brief      Перечисление выходных пинов HI3220
-typedef enum ARINC_HI3220_GPO_Enum
-{
-    Tool_HI3220_GPO_MRST = 0,   ///< Пин сброса
-    Tool_HI3220_GPO_RUN,        ///< Пин запуска
-    Tool_HI3220_GPO_ACK,        ///< Пин подтверждения
-    Tool_HI3220_GPO_CS,         ///< Пин выбора чипа
-    ARINC_HI3220_GPO_COUNT      ///< Количество выходных пинов интерфейса HI3220
-} ARINC_HI3220_GPO_Enum;
-
-/// @brief      Перечисление входных пинов HI3220
-typedef enum ARINC_HI3220_GPI_Enum
-{
-    Tool_HI3220_GPI_READY = 0,  ///< Пин готовности (только для чтения)
-    Tool_HI3220_GPI_INT,        ///< Пин прерывания (только для чтения)
-    ARINC_HI3220_GPI_COUNT      ///< Количество входных пинов интерфейса HI3220
-} ARINC_HI3220_GPI_Enum;
-
-/// @brief      Список выходных пинов
-/// @warning    Порядок элементов в ARINC_HI3220_GPO_Enum и порядок инициализации структур в массиве ARINC_GPO_Pins_Map <br>
-///                 должны быть строго идентичны, иначе прозойдет ошибочное управление ложным пином <br>
-///                 в ARINC_HI3220_Write_Pin/ARINC_HI3220_Read_Pin <br>
-///                 Программа будет работать некорректно, но никаких ошибок при компиляции при этом не будет
-static const ARINC_Pin_Struct ARINC_GPO_Pins_Map[ARINC_HI3220_GPO_COUNT] = {
-    {ARINC_PIN_MRST, ARINC_HI3220_PIN_INVERTED_ON},
-    {ARINC_PIN_RUN,  ARINC_HI3220_PIN_INVERTED_OFF},
-    {ARINC_PIN_ACK,  ARINC_HI3220_PIN_INVERTED_OFF},
-    {ARINC_PIN_CS,   ARINC_HI3220_PIN_INVERTED_ON}
-};
-
-/// @brief      Список входных пинов
-/// @warning    Порядок элементов в ARINC_HI3220_GPI_Enum и порядок инициализации структур в массиве ARINC_GPI_Pins_Map <br>
-///                 должны быть строго идентичны, иначе прозойдет ошибочное управление ложным пином <br>
-///                 в ARINC_HI3220_Write_Pin/ARINC_HI3220_Read_Pin <br>
-///                 Программа будет работать некорректно, но никаких ошибок при компиляции при этом не будет
-static const ARINC_Pin_Struct ARINC_GPI_Pins_Map[ARINC_HI3220_GPI_COUNT] = {
-    {ARINC_PIN_READY, ARINC_HI3220_PIN_INVERTED_OFF},
-    {ARINC_PIN_INT,   ARINC_HI3220_PIN_INVERTED_OFF}
-};
 
 /// @brief  Структура с описанием одного GPIO пина ARINC
 typedef struct ARINC_Pin_Struct
@@ -94,20 +55,42 @@ typedef enum ARINC_HI3220_Pin_Inverted_Enum
     ARINC_HI3220_PIN_INVERTED_ON = 0,    ///< Пин инвертирован
 } ARINC_HI3220_Pin_Inverted_Enum;
 
-Tool_Common_Circular_Buffer_Struct ARINC_UART_Output_Circular_Buffer;
+/// @brief      Список входных пинов
+/// @warning    Порядок элементов в Tool_HI3220_GPI_Enum и порядок инициализации структур в массиве ARINC_GPI_Pins_Map <br>
+///                 должны быть строго идентичны, иначе прозойдет ошибочное управление ложным пином <br>
+///                 в ARINC_HI3220_Write_Pin/ARINC_HI3220_Read_Pin <br>
+///                 Программа будет работать некорректно, но никаких ошибок при компиляции при этом не будет
+static const ARINC_Pin_Struct ARINC_GPI_Pins_Map[TOOL_HI3220_GPI_COUNT] = {
+    {ARINC_PIN_READY, ARINC_HI3220_PIN_INVERTED_OFF},
+    {ARINC_PIN_INT,   ARINC_HI3220_PIN_INVERTED_OFF}
+};
+
+/// @brief      Список выходных пинов
+/// @warning    Порядок элементов в Tool_HI3220_GPO_Enum и порядок инициализации структур в массиве ARINC_GPO_Pins_Map <br>
+///                 должны быть строго идентичны, иначе прозойдет ошибочное управление ложным пином <br>
+///                 в ARINC_HI3220_Write_Pin/ARINC_HI3220_Read_Pin <br>
+///                 Программа будет работать некорректно, но никаких ошибок при компиляции при этом не будет
+static const ARINC_Pin_Struct ARINC_GPO_Pins_Map[TOOL_HI3220_GPO_COUNT] = {
+    {ARINC_PIN_MRST, ARINC_HI3220_PIN_INVERTED_ON},
+    {ARINC_PIN_RUN,  ARINC_HI3220_PIN_INVERTED_OFF},
+    {ARINC_PIN_ACK,  ARINC_HI3220_PIN_INVERTED_OFF},
+    {ARINC_PIN_CS,   ARINC_HI3220_PIN_INVERTED_ON}
+};
+
+Circular_Buffer_Struct ARINC_UART_Output_Circular_Buffer;
 uint8_t ARINC_TX_Buffer[ARINC_UART_OUTPUT_BUFFER_LENGTH];
 
 /// @brief      Функция записи на цифровой вывод МК
-/// @param[in]  Pin    Вывод МК, подключенного к HI3220 (см. ARINC_HI3220_GPO_Enum)
+/// @param[in]  Pin    Вывод МК, подключенного к HI3220 (см. Tool_HI3220_GPO_Enum)
 /// @param[in]  State  Устанавливаемое значение (см. Tool_Common_Pin_State_Enum)
-/// @warning    Последовательность пинов из ARINC_HI3220_GPO_Enum должна точно соответствовать ARINC_GPO_Pins_Map
-void ARINC_HI3220_Write_Pin(const ARINC_HI3220_GPO_Enum Pin, const Tool_Common_Pin_State_Enum State);
+/// @warning    Последовательность пинов из Tool_HI3220_GPO_Enum должна точно соответствовать ARINC_GPO_Pins_Map
+void ARINC_HI3220_Write_Pin(const Tool_HI3220_GPO_Enum Pin, const Tool_Common_Pin_State_Enum State);
                           
 /// @brief      Функция чтения цифрового вывода МК
-/// @param[in]  Pin Вывод МК, подключенный к HI3220 (см. ARINC_HI3220_GPI_Enum)
-/// @warning    Последовательность пинов из ARINC_HI3220_GPI_Enum должна точно соответствовать ARINC_GPI_Pins_Map
+/// @param[in]  Pin Вывод МК, подключенный к HI3220 (см. Tool_HI3220_GPI_Enum)
+/// @warning    Последовательность пинов из Tool_HI3220_GPI_Enum должна точно соответствовать ARINC_GPI_Pins_Map
 /// @return     Текущее значение на указанном выводе МК (см. Tool_Common_Pin_State_Enum)
-Tool_Common_Pin_State_Enum ARINC_HI3220_Read_Pin(const ARINC_HI3220_GPI_Enum Pin);
+Tool_Common_Pin_State_Enum ARINC_HI3220_Read_Pin(const Tool_HI3220_GPI_Enum Pin);
 
 /// @brief      Функция конфигурации ARINC HI-3220 для текущего проекта
 /// @details    Поэтапная настройка работы с HI-3220:                                                                       <br>
@@ -128,6 +111,27 @@ Tool_Common_Pin_State_Enum ARINC_HI3220_Read_Pin(const ARINC_HI3220_GPI_Enum Pin
 ///                 В противном случае, возвращает код ошибки
 int ARINC_HI3220_Configuration(void);
 
+//TODO заглушка
+int ARINC_HI3220_SPI_TX(const uint8_t *const Data_Ptr, const uint32_t Data_Size)
+{
+    return 0;
+}
+//TODO заглушка
+int ARINC_HI3220_SPI_RX(uint8_t *const Data_Ptr, const uint32_t Data_Size)
+{
+    return 0;
+}
+//TODO заглушка
+int ARINC_HI3220_SPI_TX_RX(const uint8_t *const Tx_Data_Ptr, uint8_t *const Rx_Data_Ptr, const uint32_t Data_Size)
+{
+    return 0;
+}
+//TODO заглушка
+void ARINC_Print(uint8_t *const Data_Ptr, const uint32_t Data_Size)
+{
+    return;
+}
+
 int ARINC_Configuration(SPI_HandleTypeDef *SPI_Handle_Ptr, SPI_HandleTypeDef *SPI_Handle_Black_Box_Ptr)
 {
     Tool_HI3220_Hardware_Reset();
@@ -137,51 +141,55 @@ int ARINC_Configuration(SPI_HandleTypeDef *SPI_Handle_Ptr, SPI_HandleTypeDef *SP
                               ARINC_HI3220_SPI_TX_RX,
                               ARINC_HI3220_Write_Pin,
                               HAL_Delay,
+                              ARINC_Print,
+                              HAL_GetTick,
                               ARINC_HI3220_Read_Pin);
 
     Tool_HI3220_Self_Test();
 
-    Tool_Circular_Buffer_Init(&ARINC_UART_Output_Circular_Buffer[0], ARINC_TX_Buffer, ARINC_UART_OUTPUT_BUFFER_LENGTH);
+    Circular_Buffer_Init(&ARINC_UART_Output_Circular_Buffer, ARINC_TX_Buffer, ARINC_UART_OUTPUT_BUFFER_LENGTH);
+
+    return TOOLS_ERROR_CODE_ALL_OK;
 }
 
-void ARINC_HI3220_Write_Pin(const ARINC_HI3220_GPO_Enum Pin, const Tool_Common_Pin_State_Enum State)
+void ARINC_HI3220_Write_Pin(const Tool_HI3220_GPO_Enum Pin, const Tool_Common_Pin_State_Enum State)
 {
     GPIO_PinState HAL_State = 0;
     Tool_Common_Pin_State_Enum Final_State = 0;
 
-    if (Pin >= ARINC_HI3220_GPO_COUNT)
+    if (Pin >= TOOL_HI3220_GPO_COUNT)
     {
         return;
     }
     
     if (ARINC_GPO_Pins_Map[Pin].IsInverted == ARINC_HI3220_PIN_INVERTED_ON)
     {
-        Final_State = (State == Tool_Common_Pin_State_High) ? Tool_Common_Pin_State_Low : Tool_Common_Pin_State_High;
+        Final_State = (State == TOOL_COMMON_PIN_STATE_HIGH) ? TOOL_COMMON_PIN_STATE_LOW : TOOL_COMMON_PIN_STATE_HIGH;
     }
     
-    HAL_State = (Final_State == Tool_Common_Pin_State_High) ? GPIO_PIN_SET : GPIO_PIN_RESET;
+    HAL_State = (Final_State == TOOL_COMMON_PIN_STATE_HIGH) ? GPIO_PIN_SET : GPIO_PIN_RESET;
 
     HAL_GPIO_WritePin(ARINC_GPO_Pins_Map[Pin].Port, ARINC_GPO_Pins_Map[Pin].Pin, HAL_State);
 }
 
-Tool_Common_Pin_State_Enum ARINC_HI3220_Read_Pin(const ARINC_HI3220_GPI_Enum Pin)
+Tool_Common_Pin_State_Enum ARINC_HI3220_Read_Pin(const Tool_HI3220_GPI_Enum Pin)
 {
     GPIO_PinState Physical_State = 0;
 
-    if (Pin >= ARINC_HI3220_GPI_COUNT)
+    if (Pin >= TOOL_HI3220_GPI_COUNT)
     {
-        return Tool_Common_Pin_State_Low;
+        return TOOL_COMMON_PIN_STATE_LOW;
     }
 
     Physical_State = HAL_GPIO_ReadPin(ARINC_GPI_Pins_Map[Pin].Port, ARINC_GPI_Pins_Map[Pin].Pin);
 
-    return (Physical_State == GPIO_PIN_SET) ? Tool_Common_Pin_State_High : Tool_Common_Pin_State_Low;
+    return (Physical_State == GPIO_PIN_SET) ? TOOL_COMMON_PIN_STATE_HIGH : TOOL_COMMON_PIN_STATE_LOW;
 }
 
 int ARINC_HI3220_Configuration(void)
 {
     uint8_t Value = 0;
-    uint8_t Count = 0;
+    uint16_t Count = 0;
 
     Tool_HI3220_MCR_Union   MCR_Union   = {0};
     Tool_HI3220_PIER_Union  PIER_Union  = {0};
@@ -189,17 +197,17 @@ int ARINC_HI3220_Configuration(void)
     Tool_HI3220_ARXC_Union  ARXC_Union  = {0};
     Tool_HI3220_RIERL_Union RIERL_Union = {0};
 
-    TOOLS_ERROR_CFG_ASSERT(Tool_HI3220_Is_Configured);
+    TOOLS_ERROR_CFG_ASSERT(TOOLS_ERROR_STATUS_IS_CONFIGURED_NO);
 
     // Конфигурация главного управляющего регистра
     if (Tool_HI3220_Get_Register(TOOL_HI3220_MCR_WR_F, &MCR_Union.Raw) != TOOLS_ERROR_CODE_ALL_OK)
     {
         return TOOLS_ERROR_CODE_OTHER;
     }
-    Tool_HI3220_Print(&MCR_Union.Raw, 1);
+    ARINC_Print(&MCR_Union.Raw, 1);
 
-    MCR_Union.bits.A429RX = 1;
-    MCR_Union.bits.A429TX = 1;
+    MCR_Union.Bits.A429RX = 1;
+    MCR_Union.Bits.A429TX = 1;
 
     if (Tool_HI3220_Set_MCR(MCR_Union.Raw) != TOOLS_ERROR_CODE_ALL_OK)
     {
@@ -239,7 +247,7 @@ int ARINC_HI3220_Configuration(void)
     {
         return TOOLS_ERROR_CODE_OTHER;
     }
-    Tool_HI3220_Print(&Value, 1);
+    ARINC_Print(&Value, 1);
 
     // Конфигурация управляющего регистра канала 1
     if (Tool_HI3220_Set_Register(TOOL_HI3220__ARXC1, ARXC_Union.Raw) != TOOLS_ERROR_CODE_ALL_OK)
@@ -252,7 +260,7 @@ int ARINC_HI3220_Configuration(void)
     {
         return TOOLS_ERROR_CODE_OTHER;
     }
-    Tool_HI3220_Print(&Value, 1);
+    ARINC_Print(&Value, 1);
 
     // Включить разрешение выдачи INT по событию "новое сообщение в RX RAM2"
     PIER_Union.Bits.RSV    = TOOL_HI3220_PIER_MASK;
@@ -266,7 +274,7 @@ int ARINC_HI3220_Configuration(void)
     {
         return TOOLS_ERROR_CODE_OTHER;
     }
-    Tool_HI3220_Print(&Value, 1);
+    ARINC_Print(&Value, 1);
 
     // Включаем обработку прерываний на приемнике 0 и 1:
     RIERL_Union.Bits.RX0 = 1;
@@ -280,7 +288,7 @@ int ARINC_HI3220_Configuration(void)
     {
         return TOOLS_ERROR_CODE_OTHER;
     }
-    Tool_HI3220_Print(&RIERL_Union.Raw, 1);
+    ARINC_Print(&RIERL_Union.Raw, 1);
 
     // Инициализация фильтра (стр. 13–14). Включение приема сообщений со всеми метками на всех каналах
     Value = 0xFF;
@@ -295,3 +303,17 @@ int ARINC_HI3220_Configuration(void)
         Tool_HI3220_Address_Write(i, &Value, 1, NULL);
     }
 }
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	if(GPIO_Pin == GPIO_PIN_3) {
+		if(!ARINC_HI3220_Read_Pin(TOOL_HI3220_GPI_INT)) 
+        {
+            // Send ACK (right here, immediate after INT - LV)
+            ARINC_HI3220_Write_Pin(TOOL_HI3220_GPO_ACK, TOOL_COMMON_PIN_STATE_LOW);
+            HAL_Delay(6);
+            ARINC_HI3220_Write_Pin(TOOL_HI3220_GPO_ACK, TOOL_COMMON_PIN_STATE_HIGH);
+		}
+	}
+}
+

@@ -19,12 +19,14 @@
 /* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
-#include "main.h"
+#include "_Main.h"
 #include "stm32f7xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
-#include "timers_hw2.h"
+// TODO Было в предыдущем проекте, после чего убрал, но до конца не понимаю, зачем сюда надо было инклюдить этот заголовочник
+// Дальше выяснилось, что там лежит переменная timer1ms___, которую таймер дергал здесь
+// #include "timers_hw2.h"
 
 /* USER CODE END Includes */
 
@@ -191,7 +193,8 @@ void SysTick_Handler(void)
 {
   /* USER CODE BEGIN SysTick_IRQn 0 */
 
-  timer1ms___++;
+  // TODO тоже из старого кода
+  // timer1ms___++;
 
   /* USER CODE END SysTick_IRQn 0 */
   HAL_IncTick();
@@ -215,7 +218,7 @@ void EXTI3_IRQHandler(void)
   /* USER CODE BEGIN EXTI3_IRQn 0 */
 
   /* USER CODE END EXTI3_IRQn 0 */
-  HAL_GPIO_EXTI_IRQHandler(GPI_ar429_intn_Pin);
+  HAL_GPIO_EXTI_IRQHandler(ARINC_PIN_INT_PIN);
   /* USER CODE BEGIN EXTI3_IRQn 1 */
 
   /* USER CODE END EXTI3_IRQn 1 */
@@ -229,7 +232,8 @@ void DMA1_Stream3_IRQHandler(void)
   /* USER CODE BEGIN DMA1_Stream3_IRQn 0 */
 
   /* USER CODE END DMA1_Stream3_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_usart3_tx);
+  //TODO вернуть когда будет готова реализация
+  // HAL_DMA_IRQHandler(&hdma_usart3_tx);
   /* USER CODE BEGIN DMA1_Stream3_IRQn 1 */
 
   /* USER CODE END DMA1_Stream3_IRQn 1 */
@@ -243,7 +247,10 @@ void ADC_IRQHandler(void)
   /* USER CODE BEGIN ADC_IRQn 0 */
 
   /* USER CODE END ADC_IRQn 0 */
-  HAL_ADC_IRQHandler(&hadc1);
+
+  //TODO вернуть когда будет готова реализация
+  // HAL_ADC_IRQHandler(&hadc1);
+
   /* USER CODE BEGIN ADC_IRQn 1 */
 
   /* USER CODE END ADC_IRQn 1 */
@@ -257,7 +264,10 @@ void USART1_IRQHandler(void)
   /* USER CODE BEGIN USART1_IRQn 0 */
 
   /* USER CODE END USART1_IRQn 0 */
-  HAL_UART_IRQHandler(&huart1);
+
+  //TODO вернуть когда будет готова реализация
+  // HAL_UART_IRQHandler(&huart1);
+
   /* USER CODE BEGIN USART1_IRQn 1 */
 
   /* USER CODE END USART1_IRQn 1 */
@@ -271,7 +281,10 @@ void USART2_IRQHandler(void)
   /* USER CODE BEGIN USART2_IRQn 0 */
 
   /* USER CODE END USART2_IRQn 0 */
-  HAL_UART_IRQHandler(&huart2);
+
+  //TODO вернуть когда будет готова реализация
+  // HAL_UART_IRQHandler(&huart2);
+  
   /* USER CODE BEGIN USART2_IRQn 1 */
 
   /* USER CODE END USART2_IRQn 1 */
@@ -285,7 +298,10 @@ void USART3_IRQHandler(void)
   /* USER CODE BEGIN USART3_IRQn 0 */
 
   /* USER CODE END USART3_IRQn 0 */
-  HAL_UART_IRQHandler(&huart3);
+
+  //TODO вернуть когда будет готова реализация
+  // HAL_UART_IRQHandler(&huart3);
+
   /* USER CODE BEGIN USART3_IRQn 1 */
 
   /* USER CODE END USART3_IRQn 1 */
@@ -299,7 +315,10 @@ void DMA2_Stream0_IRQHandler(void)
   /* USER CODE BEGIN DMA2_Stream0_IRQn 0 */
 
   /* USER CODE END DMA2_Stream0_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_adc1);
+
+  //TODO вернуть когда будет готова реализация
+  // HAL_DMA_IRQHandler(&hdma_adc1);
+
   /* USER CODE BEGIN DMA2_Stream0_IRQn 1 */
 
   /* USER CODE END DMA2_Stream0_IRQn 1 */

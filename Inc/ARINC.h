@@ -19,6 +19,11 @@
 // #include "spi.h"
 #include "stm32f7xx_hal.h"
 
+/// @brief  Пин INT <br>
+///             Используется в stm32f7xx_it.c
+#define ARINC_PIN_INT_PIN GPIO_PIN_3    // GPI_ar429_intn_Pin
+
+
 /// @brief   Структура Сервера Накопителя и Сервера Маршрутизатора
 typedef struct Status
 {
@@ -82,6 +87,6 @@ typedef union Tool_ARINC429_Word_Union
 /// @param[in]  Delay_Ptr Указатель на функцию приостановки работы ПО (См. Tool_HI3220_Delay())
 /// @return     Возвращает TOOLS_ERROR_CODE_ALL_OK в случае успешного выполнения функции.
 ///                 В противном случае, возвращает код ошибки
-int ARINC_Configuration(SPI_HandleTypeDef *SPI_Handle_Ptr, SPI_HandleTypeDef *SPI_Handle_Black_Box_Ptr)
+int ARINC_Configuration(SPI_HandleTypeDef *SPI_Handle_Ptr, SPI_HandleTypeDef *SPI_Handle_Black_Box_Ptr);
 
 #endif

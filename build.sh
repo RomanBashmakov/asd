@@ -28,15 +28,19 @@ if [ ${#MISSING_PKGS[@]} -ne 0 ]; then
     exit 2
 fi
 
+# Очистка предыдущих результатов
+rm -rf $BUILD_DIR/*
+
 # Создать каталог для сборки
 mkdir -p $BUILD_DIR
 cd $BUILD_DIR
 
 # Конфигурация
-cmake .. -DCMAKE_BUILD_TYPE=Debug
+cmake .. -DCMAKE_TOOLCHAIN_FILE=arm-none-eabi-toolchain.cmake -DCMAKE_BUILD_TYPE=DebugQuiet
+# cmake .. -DCMAKE_TOOLCHAIN_FILE=arm-none-eabi-toolchain.cmake 
 
 # Сборка
-make -j$(nproc)
+make
 
 # Проверка успешности сборки
 if [ $? -eq 0 ]; then

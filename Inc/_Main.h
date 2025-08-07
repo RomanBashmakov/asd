@@ -4,6 +4,9 @@
 ///          необходимых для работы ВПО для STM32 СВР-Маршрутизатора
 /// @details 
 
+#ifndef __MAIN_H_
+#define __MAIN_H_
+
 #include "_Includes.h"
 
 /// @brief   Точка входа в программу
@@ -12,3 +15,5 @@
 ///          В противном случае, вызывается HardFault_Handler
 /// @return  Возвращает 0
 int main(void);
+
+#endif
