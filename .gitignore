@@ -2,7 +2,5 @@
 Debug
 *.launch
 .metadata
-html/
-latex/
-.vscode/
-.blackboxrules
+.vscode
+

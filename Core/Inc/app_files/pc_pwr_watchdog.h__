@@ -1,0 +1,14 @@
+#ifndef INC_APP_FILES_PC_PWR_WATCDOG_H_
+#define INC_APP_FILES_PC_PWR_WATCDOG_H_
+
+
+
+void PCWDG_init();
+void PCWDG_process();
+
+
+
+
+
+
+#endif

@@ -1,0 +1,1489 @@
+/*
+ * state_logger_service.c
+ *
+ *  Created on: Nov 27, 2019
+ *      Author: zhuchenkovao
+ */
+
+
+#include "state_logger_service.h"
+
+#include "crc8_icode.h"
+
+//#include "common_tcp_server.h"
+
+//#include "config.h"
+
+
+#include <stdio.h>
+
+
+
+
+/*
+// тестовые строки для проверки CRC
+uint8_t  ch1[] = { 0xE6, 0xE1, 0xE8, 0xEF, 0xFA, 0xFD, 0xF4, 0xF3 };
+uint8_t  ch2[] = { 0x51, 0x56, 0x5F, 0x58, 0x4D, 0x4A, 0x43, 0x44 };
+uint8_t  ch3[] = { 0x90, 0x97, 0x9E, 0x99, 0x8C, 0x8B, 0x82, 0x85 };
+uint8_t  ch4[] = { 0xFF, 0x18, 0xFF, 0xA5, 0xA5, 0x5A, 0x5A, 0x67 };
+uint8_t  ch5[] = { 0xFF, 0xFF, 0xFF, 0xA5, 0xA5, 0x5A, 0x5A, 0x67 };
+uint8_t  chZero[] = { 0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0};  // 16 нулей
+// */
+
+
+
+
+const char*  logStringsDevs[LOG_STRINGS_DEV_COUNT] = {
+    "stm32",
+    "vbat",
+    "temperature sensor",
+    "rtc DS1340",
+    "flash W25Q32",
+    "ethernet",
+    "user",
+    "feram FM25L16B",
+    "config",
+    "remote flasher",
+    "tablo 1",
+    "tablo 2",
+    "rfid 1",
+    "rfid 2",
+    "rfid 3",
+    "rfid 4",
+    "weighting",
+    "logic inputs",
+    "traffic light1",
+    "traffic light2",
+    "street lamp1",
+    "street lamp2",
+    "UPS",
+    "GSM modem",
+
+
+};
+
+
+
+
+
+const char*  logStringsEvents[LOG_STRINGS_DEV_COUNT][LOG_STRINGS_EVENT_COUNT] = {
+/*stm32*/   {"ok", "startup", "shutdown", "backup data invalid", "flash cleared", "shutdown time invalid", "HardFault occured", "RDP disabled", "", "", "", "", "", "", "", "", "", "", "", "" },
+            {"wrong voltage!", "+2.8V to +3.6V", "+2.0V to +2.8V", "+1.5V to +2.0V", "0 to +1.5V", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*LMT87*/   {"wrong temp!", "+80C to +200C", "-20C to +80C", "-40C to -20C", "-100C to -40C", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*RTC*/     {"time valid", "time invalid", "disconnected", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*W25Q32*/  {"ok", "ID invalid", "timeout error", "disconnected", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*ethernet*/{"link is down!", "10M_HALFDUPLEX", "10M_FULLDUPLEX", "100M_HALFDUPLEX", "100M_FULLDUPLEX", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*user*/    {"ok", "disconnect", "connect", "set datetime", "unlock term", "unlock flash", "flash clear sector", "reset stm32", "unlock remote flasher", "updated configuration", "reset rfid power", "", "", "", "", "", "", "", "", "" },
+/*FM25L16B*/{"ok", "disconnected", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*config*/  {"ok", "error crc", "error version", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*flasher*/ {"ok", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*tablo1*/  {"ok", "disconnected", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*tablo2*/  {"ok", "disconnected", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*rfid1*/   {"ok", "disconnected", "power alarm", "no supply current", "no tcp connection", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*rfid2*/   {"ok", "disconnected", "power alarm", "no supply current", "no tcp connection", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*rfid3*/   {"ok", "disconnected", "power alarm", "no supply current", "no tcp connection", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*rfid4*/   {"ok", "disconnected", "power alarm", "no supply current", "no tcp connection", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*cas*/     {"ok", "disconnected", "error recveived", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*LI*/      {"ok", "case open", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*traff1*/  {"ok", "error red", "error green", "error both", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*traff2*/  {"ok", "error red", "error green", "error both", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*lamp1*/   {"ok", "error no current", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*lamp2*/   {"ok", "error no current", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+/*UPS*/     {"ok", "no power", "no power low battery", "bypass mode", "no connection", "error attention blink", "error attention on", "error unknown", "off", "transition state", "cant calc state", "led blink too fast", "", "", "", "", "", "", "", "" },
+/*GSM*/     {"ok", "disconnected", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+
+
+};
+
+
+
+
+
+
+
+
+
+
+const char  logStringsEventType[LOG_STRINGS_EVENT_TYPE_COUNT][15] = {
+    "    info",
+    "*** warning",
+    "!!! error"
+};
+
+
+
+char  tempString1[50];
+char  tempString2[50];
+char  tempString3[50];
+char  tempString4[10];
+char  tempString5[50];
+
+
+
+TLoggerService    logService;       // глобльная перменная описания объекта службы контроля состояния и лога
+
+
+uint8_t           tempUint8;    // для экономии памяти стека эта переменная вынесена в глобальную
+uint8_t           tempUint8_2;    // для экономии памяти стека эта переменная вынесена в глобальную
+uint8_t           tempUint8_3;    // для экономии памяти стека эта переменная вынесена в глобальную
+TEvent            tempEvent2;   // для экономии памяти стека эта переменная вынесена в глобальную
+TEvent            tempEvent;    // для экономии памяти стека эта переменная вынесена в глобальную
+TLogRecord        tempRecord;
+TLogRecord        tempRecord2;
+uint8_t           tempData[LOG_TEMP_DATA_SIZE];
+
+
+
+
+uint8_t           *tempRecordDataPtr = (uint8_t*)&tempRecord;
+
+char              additionalInfo = 0;
+
+
+//=================================================================
+void LOG_init ()
+{
+
+  printf ("logger service init...\n");
+  printf ("size of log record: %d     defined log record size: %d\n", sizeof (TLogRecord), LOG_RECORD_SIZE);
+
+
+  logService.command = SLSCMD_NO_COMMAND;
+  logService.param1 = 0;
+  logService.param2 = 0;
+  logService.tempDataUpdated = 0;
+  logService.sheduleSocketClose = 0;
+
+
+
+
+  logService.connectionNum = 255;
+
+
+/*
+  printf ("---\n");
+  uint32_t addr1 = 0x23423445;
+  printf (" %lX \n", addr1);
+  LOG_incRecordAddr(&addr1);
+  printf (" %lX \n", addr1);
+  LOG_incRecordAddr(&addr1);
+  printf (" %lX \n", addr1);
+
+
+  printf ("---\n");
+  addr1 = 0x1FFFFFFF;
+  printf (" %lX \n", addr1);
+  LOG_incRecordAddr(&addr1);
+  printf (" %lX \n", addr1);
+  LOG_incRecordAddr(&addr1);
+  printf (" %lX \n", addr1);
+
+
+  printf ("---\n");
+  addr1 = 0x00000002;
+  printf (" %lX \n", addr1);
+  LOG_decRecordAddr(&addr1);
+  printf (" %lX \n", addr1);
+  LOG_decRecordAddr(&addr1);
+  printf (" %lX \n", addr1);
+  LOG_decRecordAddr(&addr1);
+  printf (" %lX \n", addr1);
+  LOG_decRecordAddr(&addr1);
+  printf (" %lX \n", addr1);  //  */
+
+
+  uint8_t crc;
+
+  /*
+  // проверка CRC
+  crc =    crc8Calc(ch1, 8);
+  printf ("crc1 %02X\n", crc);
+  crc =    crc8Calc(ch2, 8);
+  printf ("crc2 %02X\n", crc);
+  crc =    crc8Calc(ch3, 8);
+  printf ("crc3 %02X\n", crc);
+  crc =    crc8Calc(ch4, 8);
+  printf ("crc3 %02X\n", crc);
+  crc =    crc8Calc(ch5, 8);
+  printf ("crc4 %02X\n", crc);
+  crc =    crc8Calc(chZero, 16);
+  printf ("crcZ %02X\n", crc);
+
+  crc =    crc8CalcICode(ch1, 8);
+  printf ("crc1 %02X\n", crc);
+  crc =    crc8CalcICode(ch2, 8);
+  printf ("crc2 %02X\n", crc);
+  crc =    crc8CalcICode(ch3, 8);
+  printf ("crc3 %02X\n", crc);
+  crc =    crc8CalcICode(ch4, 8);
+  printf ("crc4 %02X\n", crc);
+  crc =    crc8CalcICode(ch5, 8);
+  printf ("crc5 %02X\n", crc);
+  crc =    crc8CalcICode(chZero, 16);
+  printf ("crcZ %02X\n", crc);
+  // */
+
+
+
+
+  logService.lastValidRecordFound = 0;
+  logService.lastValidRecordAddr = 0;
+  logService.lastValidRecordNum = 0;
+
+
+
+
+  // заполнение конфигурации по умолчанию:
+  for (int i = 0; i < CHECK_DEVICES_COUNT; i++){
+    logService.stateConfig[i] = config1.stateControlCfg[i];
+  }
+
+  // заполнение конфигурации выборочно (независимо от сохранённой конфигурации):
+  logService.stateConfig[LDEV_STM32] &= ~STCFG_TIMEGRP_ENABLED;    // disable time group
+  logService.stateConfig[LDEV_RTC_DS1340] &= ~STCFG_TIMEGRP_ENABLED;    // выключение группировки по времени
+  logService.stateConfig[LDEV_W25Q32] &= ~STCFG_TIMEGRP_ENABLED;    // disable time group
+  logService.stateConfig[LDEV_UPS] &= ~STCFG_TIMEGRP_ENABLED;    // disable time group
+  logService.stateConfig[LDEV_USER] &= ~STCFG_TIMEGRP_ENABLED;    // disable time group
+  logService.stateConfig[LDEV_FM25L16B] &= ~STCFG_TIMEGRP_ENABLED;    // disable time group
+  logService.stateConfig[LDEV_CONFIG] &= ~STCFG_TIMEGRP_ENABLED;    // disable time group
+  logService.stateConfig[LDEV_REMOTE_FLASHER] &= ~STCFG_TIMEGRP_ENABLED;    // disable time group
+
+
+
+  // сброс состояний
+  LOG_STATE_resetState (logService.currentState);
+  LOG_STATE_resetState (logService.newState);
+
+  // выборочная установка начальных состояний для некоторых устройств (устройства которые подключаются к плате)
+  logService.currentState[LDEV_TABLO1] = STATE_TABLO_DISCONNECTED;
+  logService.currentState[LDEV_TABLO2] = STATE_TABLO_DISCONNECTED;
+  logService.currentState[LDEV_RFID1] = STATE_RFID_DISCONNECTED;
+  logService.currentState[LDEV_RFID2] = STATE_RFID_DISCONNECTED;
+  logService.currentState[LDEV_CAS] = STATE_WCAS_DISCONNECTED;
+  logService.currentState[LDEV_UPS] = STATE_UPS_NO_CONNECTION;
+  logService.currentState[LDEV_LOGICINPUT] = STATE_LI_CASE_OPEN;
+  logService.currentState[LDEV_GSM_MODEM] = STATE_GSM_MODEM_DISCONNECTED;
+  logService.currentState[LDEV_RFID3] = STATE_RFID_DISCONNECTED;
+  logService.currentState[LDEV_RFID4] = STATE_RFID_DISCONNECTED;
+
+
+
+  // сброс кэша группировки по времени
+  for (int i = 0; i < TIME_EVENT_GROUP_CACHE_SIZE; i++){
+    TIMERS_disableTimer(&logService.eventTimeGrpCache[i].tmrGrpEventTimeout);    // disable timers
+    logService.eventTimeGrpCache[i].event.deviceNum = 0;
+    logService.eventTimeGrpCache[i].event.eventTypeNum = 0;
+    logService.eventTimeGrpCache[i].event.repeatCount = 0;
+
+  }
+
+
+
+
+  // сканирование флэш-памяти:
+  uint8_t data[LOG_RECORD_SIZE]; // массив для считывания
+  TLogRecord *pLogRecord = (TLogRecord*)data;
+
+  uint32_t  tempLedValue = 0;
+
+  // проверяем если флэш-память работоспособна
+  if (flashW25.deviceIDCorrect){
+    // поиск последней валидной записи (с максимальным номером с правильным  CRC) по всем секторам флэш
+    // при обнаружении не битых записей запомнить последний максимальный номер, далее вести счёт от этого номера
+    for (int sectorAddr = 0x000000; sectorAddr < 0x400000; sectorAddr += 0x1000){  // по 4096 байт
+      for (int addr = 0; addr < 0x1000; addr += LOG_RECORD_SIZE){  // по 16 байт
+        FLASH_W25Q32_readData (sectorAddr + addr, data, LOG_RECORD_SIZE);
+
+
+        crc = crc8CalcICode(data, LOG_RECORD_SIZE - 1);
+        if (/*0xFF == data[14] &&*/  crc == data[15]){
+          logService.lastValidRecordFound = 1;
+          if (pLogRecord->recordNum >= logService.lastValidRecordNum){
+            logService.lastValidRecordNum = pLogRecord->recordNum;
+            logService.lastValidRecordAddr = sectorAddr + addr;
+          }
+//          if (pLogRecord->recordNum <= logService.firstValidRecordNum){
+//            logService.firstValidRecordNum = pLogRecord->recordNum;
+//            logService.firstValidRecordAddr = sectorAddr + addr;
+//          }
+
+
+        }
+
+
+
+      }
+
+
+
+      // сканироване занимает много времени поэтому мигаем светодиодом
+      if ( (sectorAddr & 0xFFFF0000) > tempLedValue){
+        // понижаем частоту мигания
+        tempLedValue = sectorAddr;
+        HAL_GPIO_TogglePin(GPO_led1_GPIO_Port, GPO_led1_Pin);
+      }
+
+    }
+
+  }
+
+
+
+
+ // FLASH_W25Q32_printSector (0);  // отладочный вывод
+//  FLASH_W25Q32_printSector (1);  // отладочный вывод
+  //FLASH_W25Q32_printSector (0x3FF);  // отладочный вывод
+
+
+  printf ("last log record num: %lX\n", logService.lastValidRecordNum );             //
+  printf ("last log record address: %lX\n", logService.lastValidRecordAddr );        //
+//  printf ("first log record num: %lX\n", logService.firstValidRecordNum );         //
+//  printf ("first log record address: %lX\n", logService.firstValidRecordAddr );    //
+
+
+  // вычисление текущего номера записи, теперь lastValidRecordNum будет хранить номер текущей записи
+  logService.lastValidRecordNum++;
+
+
+  // вычисление указателя, откуда начнётся запись новых записей
+  // поиск свободного места в секторе во флэш (все байты 0xFF после валидной записи)
+  // при отсутствии такового, почистить следующий сектор после последней валидной записи
+  // при отсутствии валидных записей вообще, logService.lastValidRecordAddr будет равен нулю
+  // и должна произойти очистка нулевого сектора, если он не свободный
+
+  // определение диапазона поиска свободного места
+  uint32_t startAddrToFind = 0;
+  if (logService.lastValidRecordFound){
+    startAddrToFind = logService.lastValidRecordAddr + LOG_RECORD_SIZE;
+  } else {
+    startAddrToFind = 0;
+  }
+
+
+  uint32_t startSectorAddress = startAddrToFind & 0xFFFFF000;
+  uint32_t endAddrToFind = 0x1000 + startSectorAddress;
+  uint32_t startOffset = startAddrToFind & 0x00000FFF;
+  uint32_t checkSize = 0x1000 - startOffset;
+//  char sectorEmpty = 1;
+
+  if (startSectorAddress > 0x003FFFFF) {
+    // начинаем с нулевого сектора, очистка нулевого сектора
+
+    // чистим сектор если не свободный  (нельзя чистить без проверки, а то при частых перезагрузках израсходуем ресурс перезаписей флэш)
+    if (LOG_checkFlashEmpty (0, 0x1000) == 0){
+      FLASH_W25Q32_eraseSector (0);
+    }
+
+    logService.currentRecordAddr = 0;
+    printf (" startSectorAddress > 0x003FFFFF branch (zero sector)  %lX\n", logService.currentRecordAddr);
+
+  } else {
+    // проверка текущего сектора
+
+    printf ("check empty, start addr %lX     end addr %lX     length %lX  \n", startAddrToFind, endAddrToFind, checkSize);
+
+
+    if (startOffset == 0) {
+      // если начальный адрес поиска - начальный адрес сектора
+
+      // чистим сектор если не свободный
+      if (LOG_checkFlashEmpty (startAddrToFind, endAddrToFind) == 0){
+        FLASH_W25Q32_eraseSector (startAddrToFind);
+      }
+
+      logService.currentRecordAddr = startAddrToFind;
+      printf ("start offset == 0  branch  %lX \n",  logService.currentRecordAddr);
+
+    } else {
+      // иначе проверяем оставшийся участок сектора на свободность
+
+      if (LOG_checkFlashEmpty (startAddrToFind, endAddrToFind) ){
+        // в текущем секторе область свободна
+        // устанавливаем указатель свободного места на startAddrToFind
+
+        logService.currentRecordAddr = startAddrToFind;
+        printf ("current sector branch  %lX \n",  logService.currentRecordAddr);
+
+      }else{
+        // в текущем секторе область занята
+        // чистим следующий сектор и устанавливаем указатель свободного места начало следующего сектора
+        if (LOG_checkFlashEmpty (endAddrToFind, endAddrToFind + 0x1000) == 0 ){
+          FLASH_W25Q32_eraseSector (endAddrToFind);
+        }
+        logService.currentRecordAddr = endAddrToFind;
+        printf ("next sector branch  %lX \n",  logService.currentRecordAddr);
+
+      }
+
+
+    }
+  }
+
+
+
+}
+
+//=======================================================================
+char LOG_checkFlashEmpty (uint32_t startAddrToFind, uint32_t endAddrToFind)
+{
+  char ret = 1;
+  for (int addr = startAddrToFind; addr < endAddrToFind; addr += LOG_RECORD_SIZE){  // по 16 байт
+    if (FLASH_W25Q32_checkEmpty (addr, LOG_RECORD_SIZE ) == 0) {
+      ret = 0;
+      break;
+    }
+  }
+  return ret;
+
+}
+
+//=======================================================================
+void LOG_setRecDateTime (TLogRecord *rec)
+{
+  if (rec){
+    rec->recordDT[5] = rtcDS1340.DTData[4];  // дата день
+    rec->recordDT[4] = rtcDS1340.DTData[5];  // месяц
+    rec->recordDT[3] = rtcDS1340.DTData[6];  // год
+    rec->recordDT[2] = rtcDS1340.DTData[2];  // часы
+    rec->recordDT[1] = rtcDS1340.DTData[1];  // минуты
+    rec->recordDT[0] = rtcDS1340.DTData[0];  // секунды
+  }
+
+}
+
+//=======================================================================
+// этот блок повторяется поэтому вынесен в отдельную функцию
+void LOG_processCommandSend (uint16_t size)
+{
+
+  if (logService.tempDataUpdated){
+    // если данные обновленны
+    if (CS_getState(logService.connectionNum) == CS_STATE_OPEN){
+      // если сокет открыт попытаться отправить данные
+      CS_updateTimeout (logService.connectionNum);
+      if (CS_send(logService.connectionNum, tempData, size)) {
+        // если успешно отправлено обновить запись или завершить отправку
+        if (logService.sheduleSocketClose) {
+          // если запланированно закрытие
+          logService.sheduleSocketClose = 0;
+          logService.command = SLSCMD_NO_COMMAND; // завершаем обработку команды
+          // завершаем отправку и закрываем соединение
+          CS_sheduleCloseConnection(logService.connectionNum);
+        } else {
+
+        }
+
+        // иначе обновляем запись
+        logService.tempDataUpdated = 0;
+
+
+
+      }
+    } else {
+      // иначе прекратить обработку
+      logService.command = SLSCMD_NO_COMMAND;
+    }
+
+  }
+
+
+
+}
+
+//=======================================================================
+void LOG_process (void)
+{
+
+  LOG_STATE_generateNewState();
+  LOG_STATE_checkChangeStateAndUpdate();
+
+
+  // 05.03.2020 решено отказаться от группировки по времени,
+  // так как из-за этого в лог не попадают некоторые не частые события,
+  // а частые смены состояний (например, переподключения) для табло и считывателей решено обновлять раз в 5 минут
+  // проверка таймеров групировок событий по времени
+/*  for (int j = 0; j < TIME_EVENT_GROUP_CACHE_SIZE; j++){
+    if (TIMERS_expired (logService.eventTimeGrpCache[j].tmrGrpEventTimeout) ){
+      // время вышло:
+      //printf ("time group dev %d   event %X count %d \n",
+      //      logService.eventTimeGrpCache[j].event.deviceNum,
+      //      logService.eventTimeGrpCache[j].event.eventTypeNum,
+      //      logService.eventTimeGrpCache[j].event.repeatCount);  //  debug output
+
+
+      TIMERS_disableTimer(&logService.eventTimeGrpCache[j].tmrGrpEventTimeout);  // выключаем
+      if (logService.eventTimeGrpCache[j].event.repeatCount > 0){
+        // если событие проявилось хоть один раз - запись в лог:
+        //printf ("write\n"); //
+        LOG_writeRecordToFlash (&logService.eventTimeGrpCache[j].event);
+
+
+
+      }
+    }
+  }
+  */
+
+
+
+
+  // обработка команд от tcpCommonServer
+  // комманды обрабатываются не сразу, по принципу состояний и за один проход обабатывается один блок данных
+  // поскольку считывание и передача имеют свои ограничения по скорости и поколичеству данных
+  switch (logService.command) {
+    case SLSCMD_GET_LOG:
+      // получить лог в строчном виде
+
+      if (logService.tempDataUpdated == 0){
+
+
+        if (LOG_readRecord (logService.param1, &tempRecord)) {
+
+          if ((tempRecord.ev.eventTypeNum >> 8) == 4){
+            tempRecord2 = tempRecord;
+            additionalInfo = 1;
+            tempUint8_2 = 0;
+          }else{
+
+            if  (additionalInfo){
+              tempUint8_2 = LOG_printRecord (&tempRecord, (char*)tempData, LOG_TEMP_DATA_SIZE, &tempRecord2);
+            }else{
+              tempUint8_2 = LOG_printRecord (&tempRecord, (char*)tempData, LOG_TEMP_DATA_SIZE, NULL);
+            }
+            additionalInfo = 0;
+            logService.param2--;
+          }
+
+        }else {
+
+          logService.param2--;
+
+          if (LOG_checkEmptyRecord(&tempRecord)){
+            tempUint8_2 = snprintf ((char*)tempData,
+                               LOG_TEMP_DATA_SIZE,
+                               "record empty...\r\n"
+                                     );
+          }else {
+            tempUint8_2 = snprintf ((char*)tempData,
+                               LOG_TEMP_DATA_SIZE,
+                               "record corrupted...\r\n"
+                                     );
+          }
+
+        }
+
+
+        if (logService.param2 == 0){
+          // завершаем отправку
+          logService.sheduleSocketClose = 1;
+        }
+
+
+        LOG_incRecordAddr (&logService.param1);
+
+        logService.tempDataUpdated = 1;
+
+
+      }
+
+
+      LOG_processCommandSend (tempUint8_2);
+
+
+
+
+
+      break;
+    case SLSCMD_GET_FLASH:
+      // получить данные сектора в двоичном виде
+
+
+      if (logService.tempDataUpdated == 0){
+        FLASH_W25Q32_readData (logService.param1, tempData, LOG_READ_FLASH_BLOCK_SIZE);
+        logService.tempDataUpdated = 1;
+
+        // увеличить адрес
+        logService.param1 += LOG_READ_FLASH_BLOCK_SIZE;
+
+        if (logService.param1 >= logService.param2){
+          // завершаем отправку
+          logService.sheduleSocketClose = 1;
+        }
+      }
+
+      LOG_processCommandSend (LOG_READ_FLASH_BLOCK_SIZE);
+
+
+
+      break;
+    case SLSCMD_GET_STATE:
+      // получить стостояние
+
+      if (logService.tempDataUpdated == 0){
+        if (logService.param1 < LOG_STRINGS_DEV_COUNT ){
+          if (logService.param2 == 255){
+            tempUint8_2 = snprintf((char*)tempData,
+                                 LOG_TEMP_DATA_SIZE,
+                                 "%d, %s, %s\r\n",
+                                 logService.currentState[logService.param1] >> 8,
+                                 logStringsEvents[logService.param1][logService.currentState[logService.param1] & 0xFF],
+                                 logStringsDevs[logService.param1]
+                                 );
+
+          }else{
+            tempUint8_2 = snprintf((char*)tempData,
+                                 LOG_TEMP_DATA_SIZE,
+                                 "%d, %d, %s\r\n",
+                                 logService.currentState[logService.param1] >> 8,
+                                 logService.currentState[logService.param1] & 0xFF,
+                                 logStringsDevs[logService.param1]
+                                 );
+          }
+        }else {
+          tempUint8_2 = snprintf((char*)tempData,
+                                 LOG_TEMP_DATA_SIZE,
+                                 "%d, %d, devnum %ld\r\n",
+                                 logService.currentState[logService.param1] >> 8,
+                                 logService.currentState[logService.param1] & 0xFF,
+                                 logService.param1
+                                 );
+        }
+
+        logService.tempDataUpdated = 1;
+
+        // увеличить номер
+        logService.param1++;
+
+        if (logService.param1 >= CHECK_DEVICES_COUNT) {
+          // завершаем отправку и закрываем соединение
+          logService.sheduleSocketClose = 1;
+        }
+
+      }
+
+      LOG_processCommandSend (tempUint8_2);
+
+
+      break;
+
+
+
+
+  }
+
+
+
+
+
+
+/*
+  // отладочный ввод через переменные
+  if (user.debugVar1){
+    TLogRecord  rec;
+    rec.recordNum = logService.lastValidRecordNum;
+    LOG_setRecDateTime (&rec);
+    rec.reserv = 0xFF;
+
+    rec.recordCRC = crc8CalcICode((uint8_t*)&rec, LOG_RECORD_SIZE - 1);
+    logService.lastValidRecordNum++;
+
+
+    user.debugVar1 *= 16;
+    FLASH_W25Q32_writeData(user.debugVar1, (uint8_t*)&rec, LOG_RECORD_SIZE);
+
+    user.debugVar1 = 0;
+  }
+
+  if (user.debugVar2){
+    TLogRecord  rec;
+    rec.recordNum = logService.lastValidRecordNum;
+    LOG_setRecDateTime (&rec);
+    rec.reserv = 0xFF;
+
+    rec.recordCRC = 0x11;
+
+
+    user.debugVar2 *= 16;
+    FLASH_W25Q32_writeData(user.debugVar2, (uint8_t*)&rec, LOG_RECORD_SIZE);
+
+    user.debugVar2 = 0;
+  }
+  // */
+
+
+
+}
+
+//========================================================================
+// для правильного увеличения номера записи с учетом перехода через границы памяти
+void LOG_incRecordAddr (uint32_t *addr)
+{
+  *addr &= 0x003FFFF0;        // провалидировать адрес перед работой
+  if (*addr == 0x003FFFF0) {
+    *addr = 0;
+  } else {
+    *addr += LOG_RECORD_SIZE;
+  }
+}
+
+//========================================================================
+// для правильного уменьшения номера записи с учетом перехода через границы памяти
+void LOG_decRecordAddr (uint32_t *addr)
+{
+  *addr &= 0x003FFFF0;        // провалидировать адрес перед работой
+  if (*addr == 0) {
+    *addr = 0x003FFFF0;
+  } else {
+    *addr -= LOG_RECORD_SIZE;
+  }
+}
+
+
+
+//========================================================================
+// функция должна вызываться после записи по текущему адресу и
+// увеличением адреса (после вызова функции LOG_incRecordAddr)
+// проверка адреса и очистка сектора если он не пустой
+void LOG_checkRecordAddrAndClearSector (uint32_t *addr)
+{
+  *addr &= 0x003FFFF0;        // провалидировать адрес перед работой
+
+  uint32_t tmp = *addr;
+
+  uint32_t offset = tmp & 0x00000FFF; // получить адрес смещения
+
+
+  tmp &= 0xFFFFF000; // получить адрес сектора
+
+  if (offset == 0){
+    // если адрес - начальный адрес сектора
+    // проверить сектор на свободность и очистить если не свободный
+    //printf ("checkRecordAddrAndClearSector:  %lX offset %lX...\n", tmp, offset); // debug
+
+    if (LOG_checkFlashEmpty (tmp, tmp + 0x1000) == 0 ){
+      FLASH_W25Q32_eraseSector (tmp);
+      //printf ("checkRecordAddrAndClearSector: erased\n", tmp, offset); // debug
+    } else {
+      //printf ("checkRecordAddrAndClearSector: is empty\n", tmp, offset); // debug
+
+    }
+
+
+  }
+}
+
+
+
+//========================================================================
+void LOG_writeRecordToFlash(TEvent  *event)
+{
+
+  LOG_setRecDateTime (&tempRecord);
+  tempRecord.ev = *event;
+  tempRecord.recordNum = logService.lastValidRecordNum;
+  tempRecord.reserv = 0xFF;
+  tempRecord.recordCRC = crc8CalcICode(tempRecordDataPtr, LOG_RECORD_SIZE - 1);
+
+
+  FLASH_W25Q32_writeData(logService.currentRecordAddr, tempRecordDataPtr, LOG_RECORD_SIZE);
+
+  logService.lastValidRecordNum++;
+  LOG_incRecordAddr (&logService.currentRecordAddr);
+  LOG_checkRecordAddrAndClearSector (&logService.currentRecordAddr);
+
+}
+
+
+//========================================================================
+void LOG_writeRecord(TEvent  *event)
+{
+
+  if (event == 0) return;
+  if (flashW25.deviceIDCorrect == 0) return;
+
+
+  if (event->deviceNum == LDEV_STM32){
+    // для событий контроллера запись обрабатывается особым образом
+    if (event->eventTypeNum == STATE_STM32_STARTUP){
+      // здесь необходимо записать в правильной последовательности
+      // все события происходящие с контроллером за время перезагрузки !!!
+
+
+      // получаем номер послдедней записи до записывания факта выключения
+      if (stm32State.flashCleared){
+        // получаем из бэкап регистров номер последней записи (номера записей не должны сбрасываться при очистке флеш)
+        logService.lastValidRecordNum = STM32_getLastLogNum();
+      }
+
+
+
+      // сначала попытаемся записать время выключения:
+      uint8_t crc8 = crc8CalcICode(stm32State.lastOffDT, 7);
+      if (crc8 != stm32State.lastOffDT[7]){
+        tempEvent2.deviceNum = LDEV_STM32;
+        tempEvent2.eventTypeNum = STATE_STM32_SHUTDOWN_TIME_INVALID;
+        tempEvent2.repeatCount = 0;
+        LOG_writeRecordToFlash (&tempEvent2);
+
+      } else {
+        // иначе записываем время выключения
+        tempRecord.recordDT[5] = stm32State.lastOffDT[4];  // дата день
+        tempRecord.recordDT[4] = stm32State.lastOffDT[5];  // месяц
+        tempRecord.recordDT[3] = stm32State.lastOffDT[6];  // год
+        tempRecord.recordDT[2] = stm32State.lastOffDT[2];  // часы
+        tempRecord.recordDT[1] = stm32State.lastOffDT[1];  // минуты
+        tempRecord.recordDT[0] = stm32State.lastOffDT[0];  // секунды
+        tempRecord.ev.deviceNum = LDEV_STM32;
+        tempRecord.ev.eventTypeNum = STATE_STM32_SHUTDOWN;
+        tempRecord.ev.repeatCount = 0;
+        tempRecord.recordNum = logService.lastValidRecordNum;
+        tempRecord.reserv = 0xFF;
+        tempRecord.recordCRC = crc8CalcICode(tempRecordDataPtr, LOG_RECORD_SIZE - 1);
+
+        FLASH_W25Q32_writeData(logService.currentRecordAddr, tempRecordDataPtr, LOG_RECORD_SIZE);
+        logService.lastValidRecordNum++;
+        LOG_incRecordAddr (&logService.currentRecordAddr);
+        LOG_checkRecordAddrAndClearSector (&logService.currentRecordAddr);
+
+      }
+
+
+
+      if (stm32State.flashCleared){
+        // если флеш очищалась записываем это вторым
+
+        // используем tempEvent2 так как tempEvent может быть уже занята в функции вызвавшей эту функцию
+        tempEvent2.deviceNum = LDEV_STM32;
+        tempEvent2.eventTypeNum = STATE_STM32_LOG_FLASH_CLEARED;
+        tempEvent2.repeatCount = 0;
+        LOG_writeRecordToFlash (&tempEvent2);
+
+        stm32State.flashCleared = 0;
+      }
+
+      if (stm32State.backupDataNotValid){
+        // если бэкап регистры не правильные то записываем это в лог
+        tempEvent2.deviceNum = LDEV_STM32;
+        tempEvent2.eventTypeNum = STATE_STM32_BACKUPDATA_INVALID;
+        tempEvent2.repeatCount = 0;
+        LOG_writeRecordToFlash (&tempEvent2);
+
+      }
+
+      if (stm32State.hardFault){
+        // если обнаружена перезагрузка по HardFalult то записываем это в лог
+        stm32State.hardFault = 0;
+        tempEvent2.deviceNum = LDEV_STM32;
+        tempEvent2.eventTypeNum = STATE_STM32_HARDFAULT_OCCURED;
+        tempEvent2.repeatCount = 0;
+        LOG_writeRecordToFlash (&tempEvent2);
+
+      }
+
+      // теперь записываем время включения
+      LOG_writeRecordToFlash (event);
+
+
+    }else if (event->eventTypeNum) {
+      // если событие стм32 не равно нулю
+      LOG_writeRecordToFlash (event);
+    }
+
+  } else if (event->deviceNum == LDEV_USER){
+    // для событий пользователя запись обрабатывается особым образом
+    if (event->eventTypeNum == USER_CONNECTED){
+
+      // сначала запишем доп информацию, то есть адрес подключения
+      //tempUint32 = telnetServer.tcpSocket->pcb->remote_ip.addr;
+      uint8_t *pChar = (uint8_t*) &user.IPAddr;
+
+      // потом запишем IP-адрес
+      tempRecord.recordDT[5] = 0;  //  адрес записывается туда куда обычно записывается время (время относится к предыдущей записи)
+      tempRecord.recordDT[4] = 0;  //
+      tempRecord.recordDT[3] = pChar[3];  //
+      tempRecord.recordDT[2] = pChar[2];  //
+      tempRecord.recordDT[1] = pChar[1];  //
+      tempRecord.recordDT[0] = pChar[0];  //
+      tempRecord.ev.deviceNum = LDEV_USER;
+      tempRecord.ev.eventTypeNum = STATE_EXTENDED_INFO;
+      tempRecord.ev.repeatCount = 0;
+      tempRecord.recordNum = logService.lastValidRecordNum;
+      tempRecord.reserv = 0xFF;
+      tempRecord.recordCRC = crc8CalcICode(tempRecordDataPtr, LOG_RECORD_SIZE - 1);
+
+      FLASH_W25Q32_writeData(logService.currentRecordAddr, tempRecordDataPtr, LOG_RECORD_SIZE);
+      logService.lastValidRecordNum++;
+      LOG_incRecordAddr (&logService.currentRecordAddr);
+      LOG_checkRecordAddrAndClearSector (&logService.currentRecordAddr);
+
+
+
+      // теперь запишем "факт подключения"
+      LOG_writeRecordToFlash (event);
+
+
+    } else if (event->eventTypeNum == USER_CMD_RESET_STM32) {
+      LOG_writeRecordToFlash (event);
+
+      HAL_NVIC_SystemReset();   // уход на перезагрузку
+
+    } else if (event->eventTypeNum) {  // если событие не нулевое
+      // если событие пользователя не равно нулю
+      LOG_writeRecordToFlash (event);
+
+    }
+  } else {
+    // обработка записи событий от всех остальных устройств
+
+    LOG_writeRecordToFlash (event);
+
+  }
+
+
+
+
+}
+
+
+//========================================================================
+char LOG_readRecord(uint32_t addr, TLogRecord *pLogRecord)
+{
+  char ret = 1;
+  addr &= 0x003FFFF0;
+
+  uint8_t *data = (uint8_t*) pLogRecord;
+
+  FLASH_W25Q32_readData(addr, data, LOG_RECORD_SIZE);
+
+
+  uint8_t crc = crc8CalcICode(data, LOG_RECORD_SIZE - 1);
+  if (crc != data[15]){
+    ret = 0;
+  }
+
+  return ret;
+
+}
+
+//========================================================================
+char LOG_checkEmptyRecord(TLogRecord *pLogRecord)
+{
+  uint8_t *data = (uint8_t*)pLogRecord;
+  char empty = 1;
+  for (int i = 0; i < LOG_RECORD_SIZE; i++) {
+    if (data[i] != (uint8_t)0xFF) empty = 0;
+  }
+  return empty;
+}
+
+
+//========================================================================
+void LOG_fillStrings1to4 (TEvent *ev)
+{
+
+  if (ev){
+    tempUint8 = ev->eventTypeNum >> 8;  // event type num
+    if (tempUint8 < (uint8_t)LOG_STRINGS_EVENT_TYPE_COUNT){
+      snprintf(tempString1, 50, "%s", logStringsEventType[tempUint8]);
+    }else{
+      snprintf(tempString1, 50, "%d", tempUint8);
+    }
+
+
+    // print device and event
+    tempUint8 = ev->eventTypeNum & 0xFF;  // event num
+    if (ev->deviceNum < (uint8_t)LOG_STRINGS_DEV_COUNT){
+      // если в списке строк устройство описано
+
+      snprintf(tempString2, 50, "%s", logStringsDevs[ev->deviceNum]);
+
+
+      // попытаемся вывести событие
+      if (tempUint8 < (uint8_t)LOG_STRINGS_EVENT_COUNT){
+        // если в массиве строк событие не описано
+        if (strlen(logStringsEvents[ev->deviceNum][tempUint8]) == 0){
+          // то выводим номер
+          snprintf(tempString3, 50, "%d",  tempUint8);
+        }else {
+          // иначе выводим событие в tempString3
+          snprintf(tempString3, 50, "%s", logStringsEvents[ev->deviceNum][tempUint8]);
+        }
+      } else {
+        snprintf(tempString3, 50, "%d",  tempUint8);
+      }
+
+    } else {
+      // если неописано выводим номера
+      snprintf(tempString2, 50, "%d", ev->deviceNum);
+      snprintf(tempString3, 50, "%d", tempUint8);
+    }
+
+
+    if ( ev->repeatCount ){
+      // вывод в tempString4 количества повторений
+      snprintf(tempString4, 10, "%d",  ev->repeatCount);
+    } else {
+      tempString4[0] = 0;
+    }
+
+
+
+
+
+
+
+
+
+
+
+  }
+
+
+}
+
+//========================================================================
+int LOG_printRecord(TLogRecord *pLogRecord, char *data, int dataSize, TLogRecord *pAdditionalInfo)
+{
+  int ret = 0;
+
+  if (data == NULL) return ret;
+
+  if (pLogRecord){
+
+
+    // print event type
+    LOG_fillStrings1to4 (&pLogRecord->ev);
+
+
+
+
+
+    if (pAdditionalInfo){
+      // вывод в tempString5 дополнительной информации если есть
+      snprintf(tempString5, 50, "%d %d %d %d %d %d",
+               pAdditionalInfo->recordDT[0],
+               pAdditionalInfo->recordDT[1],
+               pAdditionalInfo->recordDT[2],
+               pAdditionalInfo->recordDT[3],
+               pAdditionalInfo->recordDT[4],
+               pAdditionalInfo->recordDT[5]
+               );
+
+
+    }else{
+      tempString5[0] = 0;
+    }
+
+
+    ret = snprintf(
+        data,
+        dataSize,
+        "%ld, %02X.%02X.%02X  %02X:%02X:%02X, %s,\t%s, %s, %s, %s \r\n",
+        pLogRecord->recordNum,
+        pLogRecord->recordDT[5],
+        pLogRecord->recordDT[4],
+        pLogRecord->recordDT[3],
+        pLogRecord->recordDT[2],
+        pLogRecord->recordDT[1],
+        pLogRecord->recordDT[0],
+        tempString1,    // event type
+        tempString2,    // device
+        tempString3,    // event
+        tempString4,    // repeat count
+        tempString5     // additional info
+        );
+  }
+
+
+
+
+
+  return ret;
+
+}
+
+
+//========================================================================
+int LOG_printTimeGrpItem(int num, char *data, int dataSize)
+{
+  int ret = 0;
+
+  if (data == NULL) return ret;
+
+  if (num >= TIME_EVENT_GROUP_CACHE_SIZE - 1) num = TIME_EVENT_GROUP_CACHE_SIZE - 1;
+
+  uint32_t timeAgo = (timer1ms___ - logService.eventTimeGrpCache[num].tmrGrpEventTimeout.old) / 1000;
+
+  // print event type
+  LOG_fillStrings1to4 (&logService.eventTimeGrpCache[num].event);
+
+
+  ret = snprintf(
+      data,
+      dataSize,
+      "started %d, %ld secs ago, %s, %s, %s, %s \r\n",
+      num,
+      timeAgo,
+      tempString1,    // event type
+      tempString2,    // device
+      tempString3,    // event
+      tempString4     // repeat count
+
+      );
+
+  return ret;
+
+}
+
+
+//========================================================================
+void  LOG_STATE_resetState (uint16_t state[CHECK_DEVICES_COUNT])
+{
+
+  for (int i = 0; i < CHECK_DEVICES_COUNT; i++) state[i] = 0;
+
+}
+
+
+//========================================================================
+void  LOG_STATE_generateNewState(void)
+{
+
+  uint16_t  state;
+  // определение состояния ethernet сети
+  state = 0;
+  switch (ethLinkStatus){
+  case 0:
+    state = STATE_IFACE_LINKDOWN;
+    break;
+  case 1:
+    state = STATE_IFACE_10M_HALFDUPLEX;
+    break;
+  case 2:
+    state = STATE_IFACE_10M_FULLDUPLEX;
+    break;
+  case 3:
+    state = STATE_IFACE_100M_HALFDUPLEX;
+    break;
+  case 4:
+    state = STATE_IFACE_100M_FULLDUPLEX;
+    break;
+  }
+
+  logService.newState[LDEV_IFACE] = state;
+
+
+  // RTC
+  state = 0;
+  if (rtcDS1340.connected != 0x7F){
+    if (rtcDS1340.connected == 1){
+      if (rtcDS1340.dateTimeIsValid){
+        state = STATE_RTC_VALID;
+      }else{
+        state = STATE_RTC_INVALID;
+      }
+    } else {
+      state = STATE_RTC_DISCONNECTED;
+    }
+  }
+  logService.newState[LDEV_RTC_DS1340] = state;
+
+
+
+
+  // FLASH W25Q32
+  state = 0;
+  if (flashW25.connected == 1){
+    if (flashW25.deviceIDCorrect == 0){
+      state = STATE_FLASH_IDINVALID;
+    } else if (flashW25.timeoutError){
+      state = STATE_FLASH_TIMEOUT_ERROR;
+    } else {
+      state = STATE_FLASH_OK;
+    }
+  } else if (flashW25.connected == 0) {
+    state = STATE_FLASH_DISCONNECTED;
+  }
+
+  logService.newState[LDEV_W25Q32] = state;
+
+
+  // REFAM FM25L16B
+  state = 0;
+  if (feramFM25.connected == 1){
+    state = STATE_FERAM_OK;
+  } else if (feramFM25.connected == 0) {
+    state = STATE_FERAM_DISCONNECTED;
+  }
+
+  logService.newState[LDEV_FM25L16B] = state;
+
+
+
+
+
+  // tablo 1
+  state = 0;
+  if (tabloService1.connected5min){
+    state = STATE_TABLO_OK;
+  } else {
+    state = STATE_TABLO_DISCONNECTED;
+  }
+  logService.newState[LDEV_TABLO1] = state;
+
+
+  // tablo 2
+  state = 0;
+  if (tabloService2.connected5min){
+    state = STATE_TABLO_OK;
+  } else {
+    state = STATE_TABLO_DISCONNECTED;
+  }
+  logService.newState[LDEV_TABLO2] = state;
+
+
+
+  // trafficlight 1
+  state = STATE_TRAFLIGHT_OK;
+  if (traffService.last_error_r[0]) {
+    state = STATE_TRAFLIGHT_ERROR_RED;
+  }
+  if (traffService.last_error_g[0]) {
+    state = STATE_TRAFLIGHT_ERROR_GREEN;
+  }
+  if (traffService.last_error_g[0] && traffService.last_error_r[0]) {
+    state = STATE_TRAFLIGHT_ERROR_RG;
+  }
+  logService.newState[LDEV_TRAFFICLIGHT1] = state;
+
+
+  // trafficlight 2
+  state = STATE_TRAFLIGHT_OK;
+  if (traffService.last_error_r[1]) {
+    state = STATE_TRAFLIGHT_ERROR_RED;
+  }
+  if (traffService.last_error_g[1]) {
+    state = STATE_TRAFLIGHT_ERROR_GREEN;
+  }
+  if (traffService.last_error_g[1] && traffService.last_error_r[1]) {
+    state = STATE_TRAFLIGHT_ERROR_RG;
+  }
+  logService.newState[LDEV_TRAFFICLIGHT2] = state;
+
+  // streetlamp1
+  state = STATE_STREETLAMP_OK;
+  if (traffService.last_err_l[0]){
+    state = STATE_STREETLAMP_ERROR;
+  }
+  logService.newState[LDEV_STREETLAMP1] = state;
+
+  // streetlamp2
+  state = STATE_STREETLAMP_OK;
+  if (traffService.last_err_l[1]){
+    state = STATE_STREETLAMP_ERROR;
+  }
+  logService.newState[LDEV_STREETLAMP2] = state;
+
+
+
+
+
+
+
+  // LMT87, определение состояния температуры
+  float temp = stm32State.tempLMT87;
+  state = 0;
+  if (temp < -100){
+    state = STATE_LMT87_UNKNOWN;
+  }else if (temp < -40){
+    state = STATE_LMT87_M100_M40;
+  } else if ( temp < -20){
+    state = STATE_LMT87_M40_M20;
+  } else if ( temp < 80){
+    state = STATE_LMT87_M20_P80;
+  } else if ( temp < 200) {
+    state = STATE_LMT87_P80_P200;
+  } else {
+    state = STATE_LMT87_UNKNOWN;
+  }
+  logService.newState[LDEV_LMT87] = state;
+
+
+  // определение состояния батарейки
+  float vbat = stm32State.vBat / 1000.0f;
+  state = 0;
+  if (stm32State.vBatCaptured == 2){
+    if (vbat < 0){
+      state = STATE_VBAT_UNKNOWN;
+    } else if (vbat < 1.5){
+      state = STATE_VBAT_0_P15;
+    } else if (vbat < 2.0){
+      state = STATE_VBAT_P15_P20;
+    } else if (vbat < 2.8){
+      state = STATE_VBAT_P20_P28;
+    } else if (vbat < 3.6){
+      state = STATE_VBAT_P28_P36;
+    } else {
+      state = STATE_VBAT_UNKNOWN;
+    }
+  }
+  logService.newState[LDEV_VBAT] = state;
+
+
+  // определение состояния пользователя
+  // события пользователя практически повторяют состояния из структуры user
+  state = user.userEvent;
+  user.userEvent = 0;
+  logService.newState[LDEV_USER] = state;
+
+
+  // определение состояния контроллера stm32
+  state = 0;
+  if (stm32State.restart){
+    state = STATE_STM32_STARTUP;
+    stm32State.restart = 0;
+  } else if (stm32State.readOutEnabled == 0){
+      state = STATE_STM32_RDP_DISABLED;
+  } else {
+    state = 0;
+  }
+  logService.newState[LDEV_STM32] = state;
+
+
+  // определение состояния конфигурации
+  state = 0;
+  if (configState == CONFIG_STATE_READ_ERROR_CRC){
+    state = STATE_CONFIG_ERROR_CRC;
+  } else if (configState == CONFIG_STATE_READ_ERROR_VERSION){
+    state = STATE_CONFIG_ERROR_VERSION;
+  } else {
+    state = STATE_CONFIG_OK;
+  }
+  logService.newState[LDEV_CONFIG] = state;
+
+
+
+  // определение состояния ИБП (состояние рассчитывается в модуле ИБП)
+  logService.newState[LDEV_UPS] = ups.state;
+
+
+  // определение состояния считывателя 1
+  logService.newState[LDEV_RFID1] = RFID_calcState0 (&rfidService1);
+
+  // определение состояния считывателя 2
+  logService.newState[LDEV_RFID2] = RFID_calcState0 (&rfidService2);
+
+  // определение состояния весов
+  logService.newState[LDEV_CAS] = WCAS_calcState ();
+
+  // определение состояния логических входов
+  logService.newState[LDEV_LOGICINPUT] = LI_calcState ();
+
+  // определение состояния GSM
+  logService.newState[LDEV_GSM_MODEM] = GSM_calcState ();
+
+  // определение состояния считывателя 3 (на порту 1 второй считыватель)
+  logService.newState[LDEV_RFID3] = RFID_calcState1 (&rfidService1);
+
+  // определение состояния считывателя 4 (на порту 2 второй считыватель)
+  logService.newState[LDEV_RFID4] = RFID_calcState1 (&rfidService2);
+
+
+}
+
+//========================================================================
+void  LOG_STATE_checkChangeStateAndUpdate(void)
+{
+
+
+  for (int i = 0; i < CHECK_DEVICES_COUNT; i++){
+    if ( logService.stateConfig[i] & STCFG_CONTROL_ENABLED ){
+      if (logService.newState[i] != logService.currentState[i]){
+        printf ("dev %d  state changed   %X   %X\n", i, logService.currentState[i], logService.newState[i]); // debug
+
+        tempEvent.deviceNum = i;
+        tempEvent.eventTypeNum = logService.newState[i];
+        tempEvent.repeatCount = 0;
+
+
+
+        // 05.03.2020 решено отказаться от группировки по времени,
+        // так как из-за этого в лог не попадают некоторые не частые события,
+        // а частые смены состояний (например, переподключения) для табло и считывателей решено обновлять раз в 5 минут
+        /*if ( logService.stateConfig[i] & STCFG_TIMEGRP_ENABLED){
+          // групировка по времени для этого события включена
+
+          // поиск слота с событием или свободного слота в кэше групировки
+          int  emptySlotNum = -1;
+          int  evSlotNum = -1;
+
+          for (int j = 0; j < TIME_EVENT_GROUP_CACHE_SIZE; j++){
+            if (logService.eventTimeGrpCache[j].tmrGrpEventTimeout.tmr != -1){
+              if (logService.eventTimeGrpCache[j].event.deviceNum == i &&
+                  logService.eventTimeGrpCache[j].event.eventTypeNum == logService.newState[i]){
+                evSlotNum = j;
+              }
+
+            } else {
+              emptySlotNum = j;
+            }
+
+          }
+
+          printf ("emptySl %d   eventSl %d \n", emptySlotNum, evSlotNum); // debug
+
+
+
+
+          if (evSlotNum == -1){
+            // если слот события не найден
+            if (emptySlotNum != -1){
+              // если есть свободные слоты
+              // заполняем новый слот
+              TIMERS_setTimer(&logService.eventTimeGrpCache[emptySlotNum].tmrGrpEventTimeout, TIME_EVENT_GROUP_TIMEOUT);
+              //logService.eventTimeGrpCache[emptySlotNum].event.deviceNum = i;
+              //logService.eventTimeGrpCache[emptySlotNum].event.eventTypeNum = logService.newState[i];
+              //logService.eventTimeGrpCache[emptySlotNum].event.repeatCount = 0;
+
+              logService.eventTimeGrpCache[emptySlotNum].event = tempEvent;
+
+              // и записываем в лог:
+              LOG_writeRecord(&tempEvent);
+
+            }else {
+              // нет свободных слотов
+              // игнорируем???...
+              // или записываем?
+              LOG_writeRecord(&tempEvent);  // пока что решено записывать
+
+
+            }
+          }else {
+            // слот события найден
+            // увеличиваем количество повторений события
+            if (logService.eventTimeGrpCache[evSlotNum].event.repeatCount < 0xFF){
+              logService.eventTimeGrpCache[evSlotNum].event.repeatCount++;
+            }
+          }
+
+        } else {  */
+          // групировка по времени для этого события выключена
+          // запись события в лог:
+          LOG_writeRecord(&tempEvent);
+
+        /*} */
+
+      }
+
+      logService.currentState[i] = logService.newState[i];
+
+    } else {
+
+      logService.currentState[i] = STATE_CONTROL_DISABLED;
+
+    }
+
+  }
+
+}
+
