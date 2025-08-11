@@ -92,7 +92,7 @@ typedef enum ARINC_Ext_System_Status_Enum //
 ///             Передаётся через UART в составе пакета управления: [0xEB] [0x01] [14 байт данных] [CRC8] <br>
 /// @warning    Неправильное изменение порядка, размеров или выравнивания приведёт
 ///                 к некорректной интерпретации данных при декодировании
-typedef struct ARINC_Control_Struct
+typedef struct ARINC_Control_Struct // T_ARINC429Control
 {
     // ---------------------------- CAPT (Командир, байты [0:6]) ----------------------------
     uint8_t Format_1                   : 7;  ///< Байт 0, биты [0:6]    Тип формата экрана CAPT [0:127]
@@ -164,7 +164,7 @@ typedef struct ARINC_Control_Struct
 ///                 Используется для передачи временной метки в протоколах ARINC
 /// @warning    Диапазоны значений для каждого поля соответствуют
 ///                 стандартным календарным ограничениям.
-typedef struct ARINC_Date_Time_Struct
+typedef struct ARINC_Date_Time_Struct // T_ARINC429ControlDateTime
 {
     uint8_t Hour;    ///< Часы
     uint8_t Minute;  ///< Минуты
@@ -177,7 +177,7 @@ typedef struct ARINC_Date_Time_Struct
 /// @brief      "125". Время в BCD. Структура слова ARINC-429
 /// @details    Форматирует часы и минуты в BCD представлении.
 ///                 В скобках - номера бит относительно всего 32-битного слова.
-typedef struct ARINC_Word_125_Struct
+typedef struct ARINC_Word_125_Struct // W125_t
 {
     uint32_t Label             : 8;  ///< Биты [0:7]    LABEL [0:255]
     uint32_t SDI               : 2;  ///< Биты [8:9]    Source/Destination Identifier [0:3]
@@ -196,11 +196,12 @@ typedef struct ARINC_Word_125_Struct
 typedef union ARINC_Word_125_Union
 {
     ARINC_Word_125_Struct Struct;
-    uint32_t              Word_429;
+    uint32_t              Raw;
+    uint8_t               ARINC_Array[4];
 } ARINC_Word_125_Union;
 
 /// @brief      "150". Время в двоичном виде. Структура слова ARINC-429.
-typedef struct ARINC_Word_150_Struct
+typedef struct ARINC_Word_150_Struct // W150_t
 {
     uint32_t Label             : 8;  ///< Биты [0:7]    LABEL [0:255]
     uint32_t Second_Sub        : 3;  ///< Биты [8:10]   Доли секунды [0:7]
@@ -215,11 +216,12 @@ typedef struct ARINC_Word_150_Struct
 typedef union ARINC_Word_150_Union
 {
     ARINC_Word_150_Struct Struct;
-    uint32_t              Word_429;
+    uint32_t              Raw;
+    uint8_t               ARINC_Array[4];
 } ARINC_Word_150_Union;
 
 /// @brief      "260". Дата в BCD. Структура слова ARINC-429.
-typedef struct ARINC_Word_260_Struct
+typedef struct ARINC_Word_260_Struct // W260_t
 {
     uint32_t Label             : 8;  ///< Биты [0:7]    LABEL [0:255]
     uint32_t SDI               : 2;  ///< Биты [8:9]    Source/Destination Identifier [0:3]
@@ -240,11 +242,38 @@ typedef struct ARINC_Word_260_Struct
 typedef union ARINC_Word_260_Union
 {
     ARINC_Word_260_Struct Struct;
-    uint32_t              Word_429;
+    uint32_t              Raw;
+    uint8_t               ARINC_Array[4];
 } ARINC_Word_260_Union;
 
+//TODO в оригинале описания не было, уточнить суть структур
+/// @brief      Структура режима работы канала
+/// @details    Двухбитовое поле Matrix в ARINC-429 определяет статус/режим работы передатчика
+///             или системы в целом. Конкретные значения и трактовка зависят от спецификации ARINC.
+///             Данное перечисление использовано в ARINC_Word_300_Struct.
+/// @warning    Назначения некоторых кодов (NC) требуют уточнения в официальной документации.
+typedef enum ARINC_A300_Matrix_Enum // enum A300_Matrix_e
+{
+    ARINC_A300_MATRIX_NC1               = 0x00, ///< Не используется / зарезервировано #1
+    ARINC_A300_MATRIX_FUNCTIONAL_TEST   = 0x01, ///< Режим функционального теста
+    ARINC_A300_MATRIX_NC2               = 0x02, ///< Не используется / зарезервировано #2
+    ARINC_A300_MATRIX_NORMAL_OPERATION  = 0x03  ///< Нормальная работа
+} ARINC_A300_Matrix_Enum;
+
+/// @brief      Структура статуса системы в ARINC-429 сообщении
+/// @details    Определяет общий статус системы или устройства (2 бита).
+///             Используется в ARINC_Word_300_Struct для передачи диагностической информации.
+/// @warning    Коды NC — зарезервированы или не используются; интерпретация зависит от контекста протокола.
+typedef enum ARINC_System_Status_Enum // enum System_Status_e
+{
+    ARINC_SYSTEM_STATUS_NC1              = 0x00, ///< Не используется / зарезервировано #1
+    ARINC_SYSTEM_STATUS_PARTIALLY_FAULT  = 0x01, ///< Частичная неисправность
+    ARINC_SYSTEM_STATUS_NC2              = 0x02, ///< Не используется / зарезервировано #2
+    ARINC_SYSTEM_STATUS_FAULT            = 0x03  ///< Полная неисправность
+} ARINC_System_Status_Enum;
+
 /// @brief      "300". Состояние оборудования. Структура слова ARINC-429.
-typedef struct ARINC_Word_300_Struct
+typedef struct ARINC_Word_300_Struct // W300_t
 {
     uint32_t Label             : 8;  ///< Биты [0:7]    LABEL [0:255]
     uint32_t SDI               : 2;  ///< Биты [8:9]    Source/Destination Identifier [0:3]
@@ -257,23 +286,39 @@ typedef struct ARINC_Word_300_Struct
     uint32_t Camera_6_Fault    : 1;  ///< Бит  [15]     Неисправность камеры 6 [0:1]
 
     ARINC_System_Status_Enum System_Status : 2;  ///< Биты [16:17]  Код состояния системы
-    uint32_t Service_Router_Status : 1;          ///< Бит  [18]  Состояние сервисного маршрутизатора [0:1]
-    uint32_t Storage_Status        : 1;          ///< Бит  [19]  Состояние накопителя [0:1]
-    uint32_t XAE21_Fault           : 1;          ///< Бит  [20]  Неисправность XAE21 [0:1]
-    uint32_t Camera_Switch_Fault   : 1;          ///< Бит  [21]  Неисправность переключателя камер [0:1]
+    uint32_t Service_Router_Status         : 1;  ///< Бит  [18]     Состояние сервисного маршрутизатора [0:1]
+    uint32_t Storage_Status                : 1;  ///< Бит  [19]     Состояние накопителя [0:1]
+    uint32_t XAE21_Fault                   : 1;  ///< Бит  [20]     Неисправность XAE21 [0:1]
+    uint32_t Camera_Switch_Fault           : 1;  ///< Бит  [21]     Неисправность переключателя камер [0:1]
 
     uint32_t Not_Used              : 7;  ///< Биты [22:28]  Не используются [0:127]
     ARINC_A300_Matrix_Enum Matrix  : 2;  ///< Биты [29:30]  Sign/Status Matrix [0:3]
-    uint32_t Parity                 : 1;  ///< Бит  [31]     Parity (odd) [0:1]
+    uint32_t Parity                : 1;  ///< Бит  [31]     Parity (odd) [0:1]
 } ARINC_Word_300_Struct;
 
 typedef union ARINC_Word_300_Union
 {
     ARINC_Word_300_Struct Struct;
-    uint32_t              Word_429;
+    uint32_t              Raw;
     uint8_t               ARINC_Array[4];
 } ARINC_Word_300_Union;
 
+/// @brief      Статус Linux-серверов системы
+/// @details    Компактное представление состояния двух Linux-серверов, упакованное в 2 бита.
+///             Используется как интерфейс между Linux-частью системы и ARINC-подсистемой.
+///             Передаётся по UART пакетом вида:
+///                 Байт 0: 0xCE (код команды "статус Linux")                                           <br>
+///                 Байт 1: [Service Router Status][Storage Server Status][резерв:6]                    <br>
+///                 Байт 2: CRC8                                                                        <br>
+///             После приёма статусы попадают в слово ARINC-429 №300 для широковещательной передачи.    <br>
+/// @note       Логика полей:
+///                 0 = Сервер работает нормально
+///                 1 = Сервер неисправен или недоступен
+typedef struct ARINC_Linux_Status_Struct
+{
+    uint8_t Service_Router_Status : 1;  ///< Бит [0] — Статус сервера маршрутизации [0:1]
+    uint8_t Storage_Server_Status : 1;  ///< Бит [1] — Статус сервера накопителя  [0:1]
+} ARINC_Linux_Status_Struct;
 
 #pragma pack(pop)
 
