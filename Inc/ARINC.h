@@ -179,6 +179,9 @@ typedef struct ARINC_Date_Time_Struct // T_ARINC429ControlDateTime
 ///                 В скобках - номера бит относительно всего 32-битного слова.
 typedef struct ARINC_Word_125_Struct // W125_t
 {
+// Бит №:  [31]      [30:29]   [28:26]    [25:22]     [21:18]      [17:14]      [13:10]        [9:8]   [7:0]
+// Поле :  Parity    Matrix    Hour_Tens  Hour_Unit   Minute_Tens  Minute_Unit  Minute_Second  SDI     Label
+// Данные: [0:1]     [0:3]     [0:2]      [0:9]       [0:9]        [0:5]        [0:9]          [0:3]   [0:255]
     uint32_t Label             : 8;  ///< Биты [0:7]    LABEL [0:255]
     uint32_t SDI               : 2;  ///< Биты [8:9]    Source/Destination Identifier [0:3]
 
@@ -203,6 +206,9 @@ typedef union ARINC_Word_125_Union
 /// @brief      "150". Время в двоичном виде. Структура слова ARINC-429.
 typedef struct ARINC_Word_150_Struct // W150_t
 {
+// Бит №:  [31]     [30:29]   [28]       [27:23]   [22:17]   [16:11]    [10:8]       [7:0]
+// Поле :  Parity   Matrix    Not_Used   Hour      Minute    Second     Second_Sub   Label
+// Данные: [0:1]    [0:3]     [0:1]      [0:23]    [0:59]    [0:59]     [0:7]        [0:255]
     uint32_t Label             : 8;  ///< Биты [0:7]    LABEL [0:255]
     uint32_t Second_Sub        : 3;  ///< Биты [8:10]   Доли секунды [0:7]
     uint32_t Second            : 6;  ///< Биты [11:16]  Секунды [0:59]
@@ -223,6 +229,9 @@ typedef union ARINC_Word_150_Union
 /// @brief      "260". Дата в BCD. Структура слова ARINC-429.
 typedef struct ARINC_Word_260_Struct // W260_t
 {
+// Бит №:  [31]     [30:29]     [28:27]    [26:23]   [22]         [21:18]      [17:14]    [13:10]     [9:8]   [7:0]
+// Поле :  Parity   Matrix      Day_Tens   Day_Units Month_Tens   Month_Units  Year_Tens  Year_Units  SDI     Label
+// Данные: [0:1]    [0:3]       [0:3]      [0:9]     [0:1]        [0:9]        [0:9]      [0:9]       [0:3]   [0:255]
     uint32_t Label             : 8;  ///< Биты [0:7]    LABEL [0:255]
     uint32_t SDI               : 2;  ///< Биты [8:9]    Source/Destination Identifier [0:3]
 
@@ -275,6 +284,9 @@ typedef enum ARINC_System_Status_Enum // enum System_Status_e
 /// @brief      "300". Состояние оборудования. Структура слова ARINC-429.
 typedef struct ARINC_Word_300_Struct // W300_t
 {
+// Бит №:  [31]     [30:29]     [28:22]        [21]           [20]         [19]            [18]                    [17:16]         [15]            [14]            [13]            [12]            [11]            [10]            [9:8]   [7:0]
+// Поле :  Parity   Matrix      Not_Used       Camera_Switch  XAE21_Fault  Storage_Status  Service_Router_Status   System_Status   Camera_6_Fault  Camera_5_Fault  Camera_4_Fault  Camera_3_Fault  Camera_2_Fault  Camera_1_Fault  SDI     Label
+// Данные: [0:1]    [0:3]       [0:127]        [0:1]          [0:1]        [0:1]           [0:1]                   [0:3]           [0:1]           [0:1]           [0:1]           [0:1]           [0:1]           [0:1]           [0:3]   [0:255]    
     uint32_t Label             : 8;  ///< Биты [0:7]    LABEL [0:255]
     uint32_t SDI               : 2;  ///< Биты [8:9]    Source/Destination Identifier [0:3]
 
@@ -304,7 +316,7 @@ typedef union ARINC_Word_300_Union
 } ARINC_Word_300_Union;
 
 /// @brief      Статус Linux-серверов системы
-/// @details    Компактное представление состояния двух Linux-серверов, упакованное в 2 бита.
+/// @details    Состояния двух Linux-серверов, упакованное в 2 бита.
 ///             Используется как интерфейс между Linux-частью системы и ARINC-подсистемой.
 ///             Передаётся по UART пакетом вида:
 ///                 Байт 0: 0xCE (код команды "статус Linux")                                           <br>
@@ -314,11 +326,13 @@ typedef union ARINC_Word_300_Union
 /// @note       Логика полей:
 ///                 0 = Сервер работает нормально
 ///                 1 = Сервер неисправен или недоступен
-typedef struct ARINC_Linux_Status_Struct
+typedef struct ARINC_Linux_Status_Struct // Linux_Status_t
 {
     uint8_t Service_Router_Status : 1;  ///< Бит [0] — Статус сервера маршрутизации [0:1]
     uint8_t Storage_Server_Status : 1;  ///< Бит [1] — Статус сервера накопителя  [0:1]
 } ARINC_Linux_Status_Struct;
+
+
 
 #pragma pack(pop)
 
