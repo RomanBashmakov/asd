@@ -7,6 +7,15 @@
 #include "Tool_HI3220.h"
 #include "Circular_Buffer.h"
 
+/// @brief Таймаут связи с ХАЭ-21 (мс) 
+#define ARINC_XAE21_TIMEOUT            5000U
+
+/// @brief Таймаут связи с серверами (мс)
+#define ARINC_SERVER_TIMEOUT           3000U
+
+/// @brief Общее количество камер в системе
+#define ARINC_CHANNELS_TOTAL           6U
+
 /// @brief Порт и пин RX
 #define ARINC_PIN_RX    GPIOD, GPIO_PIN_8    // mcu2pc_Pin
 
@@ -39,6 +48,8 @@
 
 /// @brief      Количество элементов в кольцевом буфере
 #define ARINC_UART_OUTPUT_BUFFER_LENGTH 200
+
+
 
 /// @brief  Структура с описанием одного GPIO пина ARINC
 typedef struct ARINC_Pin_Struct
@@ -110,6 +121,28 @@ Tool_Common_Pin_State_Enum ARINC_HI3220_Read_Pin(const Tool_HI3220_GPI_Enum Pin)
 /// @return     Возвращает TOOLS_ERROR_CODE_ALL_OK в случае успешного выполнения функции.
 ///                 В противном случае, возвращает код ошибки
 int ARINC_HI3220_Configuration(void);
+
+/// @brief Глобальная структура управления кабиной
+/// @details Содержит текущее состояние органов управления CAPT и FO.
+///          Обновляется при приёме данных от внешних систем.
+ARINC_Control_Struct ARINC_Control;
+
+/// @brief Глобальная структура даты и времени
+/// @details Содержит текущие значения времени и даты, получаемые от ХАЭ-21
+///          через ARINC слова 150 (время в binary) и 260 (дата в BCD).
+ARINC_Date_Time_Struct ARINC_DateTime;
+
+/// @brief Номер активного канала камеры [1:6]
+/// @details Определяется по положению переключателя камер.
+///          Значение 0 означает неисправность переключателя.
+uint8_t ARINC_Channel_Number;
+
+/// @brief Центральная структура системного статуса
+/// @details Глобальная переменная для централизованного мониторинга состояния
+///          всех подсистем. Обновляется различными модулями и используется
+///          для формирования сводного статуса в ARINC слове 0300.
+ARINC_System_Status_Struct ARINC_System_Status;
+
 
 //TODO заглушка
 int ARINC_HI3220_SPI_TX(const uint8_t *const Data_Ptr, const uint32_t Data_Size)
