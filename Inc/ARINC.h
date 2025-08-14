@@ -7,6 +7,10 @@
 ///                 3) <br>
 /// @note       HI3220 подключен через SPI2
 ///             Для работы с HI3220 задействованы 9 выводов МК
+///             Перечень определений: <br>
+///                  ХАЭ-21 - авиационный хронометр <br>
+///                  
+
 
 #ifndef _ARINC_H_
 #define _ARINC_H_
@@ -19,19 +23,18 @@
 // #include "spi.h"
 #include "stm32f7xx_hal.h"
 
-/// @brief  Пин INT <br>
+/// @brief      Пин INT <br>
 ///             Используется в stm32f7xx_it.c
 #define ARINC_PIN_INT_PIN GPIO_PIN_3    // GPI_ar429_intn_Pin
 
-
-/// @brief   Структура Сервера Накопителя и Сервера Маршрутизатора
+/// @brief      Структура Сервера Накопителя и Сервера Маршрутизатора
 typedef struct Status
 {
     uint8_t archive;  //!< Состояние Сервера Накопителя
     uint8_t router;   //!< Состояние Сервера Маршрутизатора
 } Status;
 
-/// @brief   Структура пакета с состоянием Сервера Накопителя и Сервера Маршрутизатора
+/// @brief      Структура пакета с состоянием Сервера Накопителя и Сервера Маршрутизатора
 typedef struct SetStatus
 {
     uint8_t flag;    //!< Флаг пакета
@@ -39,7 +42,7 @@ typedef struct SetStatus
     Status  status;  //!< Статус Сервера Накопителя и Сервера Маршрутизатора
 } SetStatus;
 
-/// @brief   Структура пакета с запросом на получение состояния Камеры
+/// @brief      Структура пакета с запросом на получение состояния Камеры
 typedef struct GetStatusQuery
 {
     uint8_t flag;    //!< Флаг пакета
@@ -47,7 +50,7 @@ typedef struct GetStatusQuery
     uint8_t camera;  //!< Номер камеры
 } GetStatusQuery;
 
-/// @brief   Структура пакета с ответом на запрос о получении состояния Камеры
+/// @brief      Структура пакета с ответом на запрос о получении состояния Камеры
 typedef struct GetStatusResponse
 {
     uint8_t flag;    //!< Флаг пакета
@@ -58,7 +61,7 @@ typedef struct GetStatusResponse
 
 #pragma pack(push, 1)
 
-/// @brief Структура 32-битного ARINC-429 слова
+/// @brief      Структура 32-битного ARINC-429 слова
 typedef struct ARINC_Word_Struct
 {
     uint32_t Parity : 1;   ///< Бит чётности (odd parity)
@@ -68,7 +71,7 @@ typedef struct ARINC_Word_Struct
     uint32_t Label  : 8;   ///< Label (адрес сообщения)
 } ARINC_Word_Struct;
 
-/// @brief Union для доступа к ARINC-429 слову как к raw значению или по полям
+/// @brief      Union для доступа к ARINC-429 слову как к raw значению или по полям
 typedef union Tool_ARINC429_Word_Union
 {
     uint32_t          Tool_ARINC429_Word_Raw;     ///< Целое 32-битное значение
@@ -366,8 +369,8 @@ typedef struct ARINC_Linux_Status_Struct // Linux_Status_t
 ///                 ├─ T_INA226_GetPower() <br> //TODO поставить новую функцию здесь когда она будет
 ///                 └─ HAL_UART_Transmit_DMA() <br> //TODO еще раз внимательно разобраться как здесь использовался DMA
 /// @warning    Нарушение порядка вызовов или исключение этой функции из главного цикла
-///             приведёт к полной остановке обмена ARINC‑429 и рассинхронизации системы.
-void ARINC_process(void);
+///                 приведёт к полной остановке обмена ARINC‑429 и рассинхронизации системы.
+void ARINC_Process(void);
 
 /// @brief      Парсинг ARINC-429 сообщений канала 1 (от ХАЭ-21)
 /// @details    Обрабатывает входящие ARINC слова от авиационного хронометра ХАЭ-21: <br>
@@ -406,6 +409,46 @@ void ARINC_Parse_Message_Channel_1(uint8_t *Data_Ptr);
 /// @note       Функция автоматически вычисляет и добавляет CRC8 к ответным пакетам
 void ARINC_Protocol_Input_Packet(uint8_t *Packet_Ptr, uint8_t Packet_Size, 
                                  uint8_t *Output_Ptr, uint8_t *Output_Size);
+
+/// @brief      Формирование UART пакета управления кабиной (тип 0xEB 0x01)
+/// @details    Упаковывает текущее состояние органов управления из структуры
+///                 ARINC_Control в 17-байтный UART пакет: <br>
+///                     **Формат пакета:** <br>
+///                         Байт  0:      0xEB (заголовок) <br>
+///                         Байт  1:      0x01 (код типа "управление") <br>
+///                         Байты [2:15]: 14 байт данных управления (CAPT + FO) <br>
+///                         Байт  16:     CRC8 от байтов 0-15 <br>
+///                     **Содержимое данных (14 байт):** <br>
+///                         Байты [0:6]:  блок CAPT (формат, курсор, джойстик, кнопки) <br>
+///                         Байты [7:13]: блок FO (аналогичная структура) <br>
+/// @param[out] Packet_Output_Ptr Указатель на буфер для 17-байтного пакета
+/// @warning    Буфер Packet_Output_Ptr должен иметь размер не менее 17 байт.
+///                 Переполнение буфера приведёт к повреждению памяти. //TODO сделать проверку на размер буфера? как?
+/// @note       Координаты курсора разбиваются на старшие/младшие части согласно
+///                 протоколу упаковки битовых полей
+void ARINC_Protocol_Build_UART_Packet_Control(char *Packet_Output_Ptr);
+
+/// @brief      Формирование UART пакета даты/времени (тип 0xEB 0x02)
+/// @details    Упаковывает текущие значения времени и даты из структуры
+///             ARINC_DateTime в 9-байтный UART пакет:
+///                **Формат пакета:**
+///                    Байт 0: 0xEB (заголовок)
+///                    Байт 1: 0x02 (код типа "дата/время")
+///                    Байты 2-7: 6 байт данных времени
+///                    Байт 8: CRC8 от байтов 0-7
+///                **Содержимое данных (6 байт):**
+///                    Байт 0: Hour [0-23]
+///                    Байт 1: Minute [0-59] 
+///                    Байт 2: Second [0-59]
+///                    Байт 3: Year [0-255]
+///                    Байт 4: Month [1-12]
+///                    Байт 5: Day [1-31]
+/// @param[out] Packet_Output_Ptr Указатель на буфер для 9-байтного пакета
+/// @warning    Буфер Packet_Output_Ptr должен иметь размер не менее 9 байт <br>
+///             Структура ARINC_DateTime должна содержать валидные значения времени,
+///                 полученные от ХАЭ-21 через ARINC слова 150/260
+/// @note       Данные передаются в двоичном формате, без BCD кодирования
+void ARINC_Protocol_Build_UART_Packet_DateTime(char *Packet_Output_Ptr);
 
 #pragma pack(pop)
 
