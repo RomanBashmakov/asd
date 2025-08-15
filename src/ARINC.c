@@ -102,8 +102,11 @@ static const ARINC_Pin_Struct ARINC_GPO_Pins_Map[TOOL_HI3220_GPO_COUNT] = {
     { ARINC_PIN_CS, ARINC_HI3220_PIN_INVERTED_ON }
 };
 
+/// @brief      Структура кольцевого буфера для асинхронной передачи по UART к ПК
 Circular_Buffer_Struct ARINC_UART_Output_Circular_Buffer; //TCbuffer cbARINCUartOutput //TODO пока для ориентации пусть побудет, чтобы проще искать по старому и новому коду
-uint8_t                ARINC_TX_Buffer[ARINC_UART_OUTPUT_BUFFER_LENGTH]; //arincTxBuffer //TODO пока для ориентации пусть побудет, чтобы проще искать по старому и новому коду
+
+/// @brief      Буфер внутри кольцевого буфера ARINC_UART_Output_Circular_Buffer
+uint8_t         ARINC_TX_Buffer[ARINC_UART_OUTPUT_BUFFER_LENGTH]; //arincTxBuffer //TODO пока для ориентации пусть побудет, чтобы проще искать по старому и новому коду
 
 /// @brief      Функция записи на цифровой вывод МК
 /// @param[in]  Pin    Вывод МК, подключенного к HI3220 (см. Tool_HI3220_GPO_Enum)
@@ -157,6 +160,12 @@ uint8_t ARINC_Channel_Number;
 ///                 для формирования сводного статуса в ARINC слове 0300
 ARINC_System_Status_Struct ARINC_System_Status;
 
+/// @brief      Интерфейс SPI для связи с HI3220
+SPI_HandleTypeDef *ARINC_SPI_Handle;
+
+/// @brief      Интерфейс UART для связи с ПК
+UART_HandleTypeDef *ARINC_UART_Handle;
+
 // TODO заглушка
 int ARINC_HI3220_SPI_TX(const uint8_t *const Data_Ptr, const uint32_t Data_Size)
 {
@@ -185,8 +194,21 @@ void ARINC_Print_Err(uint8_t Error_Id)
     ARINC_Print(&Data_Ptr[0], 1);
 }
 
-int ARINC_Configuration(SPI_HandleTypeDef *SPI_Handle_Ptr, SPI_HandleTypeDef *SPI_Handle_Black_Box_Ptr)
+int ARINC_Configuration(SPI_HandleTypeDef *SPI_Handle_Ptr, SPI_HandleTypeDef *SPI_Handle_Black_Box_Ptr, UART_HandleTypeDef *UART_Handle_Ptr)
 {
+    if(!SPI_Handle_Ptr) 
+    {
+        return TOOLS_ERROR_CODE_ARG;
+    }
+
+    if(!UART_Handle_Ptr) 
+    {
+        return TOOLS_ERROR_CODE_ARG;
+    }
+
+    ARINC_SPI_Handle  = SPI_Handle_Ptr;
+    ARINC_UART_Handle = UART_Handle_Ptr;
+
     Tool_HI3220_Hardware_Reset();
 
     Tool_HI3220_Configuration(ARINC_HI3220_SPI_TX,
@@ -550,9 +572,9 @@ void ARINC_Process(void)
         // ┌─────────────────────────────────────────────────────────────────────────┐
         // │                        БАЗОВЫЕ ПОЛЯ СЛОВА 0300                          │
         // └─────────────────────────────────────────────────────────────────────────┘
-        Status_Word_300.Struct.Label    = 300;  // Метка слова
-        Status_Word_300.Struct.SDI      = 0x03;   // Source/Destination ID
-        Status_Word_300.Struct.Not_Used = 0x00;   // Зарезервированные биты
+        Status_Word_300.Struct.Label    = 0300; 
+        Status_Word_300.Struct.SDI      = 0x03; //TODO в исходном коде не было, разобраться потом что к чему
+        Status_Word_300.Struct.Not_Used = 0x00;
 
         // ┌─────────────────────────────────────────────────────────────────────────┐
         // │                      ДИАГНОСТИКА КАМЕР ПО ТОКУ                          │
@@ -690,7 +712,7 @@ void ARINC_Process(void)
 
     /// @brief      Проверка готовности UART3 для передачи данных
     /// @details    Если UART свободен и есть данные в буфере - отправляем через DMA
-    if (HUART3.gState == HAL_UART_STATE_READY)
+    if (ARINC_UART_Handle->gState == HAL_UART_STATE_READY)
     {
         // Определение количества байтов для передачи
         uint16_t Bytes_To_Send = ARINC_UART_Output_Circular_Buffer.Element_Count;
@@ -700,14 +722,80 @@ void ARINC_Process(void)
         }
 
         // Извлечение данных из кольцевого буфера
-        Circular_Buffer_Get_First_N_Bytes(&Circular_Buffer_ARINC_UART_Output,
-                                          (uint8_t *)UART3_TX_Buffer,
-                                          Bytes_To_Send);
+        Circular_Buffer_Pop(&ARINC_UART_Output_Circular_Buffer,
+                            (uint8_t *)ARINC_TX_Buffer,
+                            Bytes_To_Send);
 
         // Запуск DMA передачи
-        HAL_UART_Transmit_DMA(&HUART3, UART3_TX_Buffer, Bytes_To_Send);
+        HAL_UART_Transmit_DMA(ARINC_UART_Handle, ARINC_TX_Buffer, Bytes_To_Send);
     }
 }
+
+//TODO Если приходящие байты находятся в другом порядке (например, big-endian, а МК — little-endian), такой каст не подойдёт напрямую: byte order будет съеден
+int ARINC_Parse_Message_Channel_1(uint8_t *Data_Ptr)
+{
+    // Приводим к универсальному union, чтобы прочитать Label
+    const Tool_ARINC429_Word_Union *word_union = (const Tool_ARINC429_Word_Union *)Data_Ptr;
+    uint8_t Label = word_union->Tool_ARINC429_Word_Fields.Label;
+
+    // Обновляем таймер и сбрасываем ошибку ХАЭ-21
+    TIMERS_setTimer(&Timer_Recv_Timeout_XAE21, ARINC_PC_RECEIVE_TIMEOUT_XAE21);
+    ARINC_System_Status.XAE21_Fault = TOOL_COMMON_BOOLEAN_LEVEL_FALSE;
+
+    switch (Label)
+    {
+        case 0x96: // 0150 - время в двоичном формате
+        {
+            const ARINC_Word_150_Union *w150 = (const ARINC_Word_150_Union *)Data_Ptr;
+
+            ARINC_DateTime.Hour   = w150->Struct.Hour;
+            ARINC_DateTime.Minute = w150->Struct.Minute;
+            ARINC_DateTime.Second = w150->Struct.Second;
+
+            break;
+        }
+
+        case 0x4C: // 0125 - время в BCD формате //TODO(резерв, не понял как используется и используется ли вообще)
+        {
+            const ARINC_Word_125_Union *w125 = (const ARINC_Word_125_Union *)Data_Ptr;
+
+            //TODO если например всё-таки надо будет использовать:
+            // uint8_t minutes = w125->Struct.Minute_Tens * 10 + w125->Struct.Minute_Unit;
+            // uint8_t hours = w125->Struct.Hour_Tens * 10 + w125->Struct.Hour_Unit;
+
+            break;
+        }
+
+        case 0x9A: // 0260 - дата в BCD формате
+        {
+            const ARINC_Word_260_Union *w260 = (const ARINC_Word_260_Union *)Data_Ptr;
+
+            ARINC_DateTime.Year  = w260->Struct.Year_Tens * 10 + w260->Struct.Year_Units;
+            ARINC_DateTime.Month = w260->Struct.Month_Tens * 10 + w260->Struct.Month_Units;
+            ARINC_DateTime.Day   = w260->Struct.Day_Tens * 10 + w260->Struct.Day_Units;
+
+            // Снова сброс таймаута и ошибки - на всякий случай
+            TIMERS_setTimer(&Timer_Recv_Timeout_XAE21, ARINC_PC_RECEIVE_TIMEOUT_XAE21);
+            ARINC_System_Status.XAE21_Fault = TOOL_COMMON_BOOLEAN_LEVEL_FALSE;
+
+            break;
+        }
+
+        default:
+            return TOOLS_ERROR_CODE_ARG;
+            break;
+    }
+
+    return TOOLS_ERROR_CODE_ALL_OK;
+}
+
+int ARINC429_parseMessageCh2(char *data)
+{
+    //TODO в исходном коде по второму каналу пока что данные не обрабатываются
+    return TOOLS_ERROR_CODE_ALL_OK;
+}
+
+
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {

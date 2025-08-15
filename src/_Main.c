@@ -16,17 +16,18 @@ int _Main_HI3220_Configuration(void);
 int _Main_GPIO_Configuration(void);
 
 /// @brief      Интерфейс UART, используемый для связи 
-UART_HandleTypeDef huart1;
+static UART_HandleTypeDef huart1;
 
 /// @brief      Интерфейс UART, используемый для связи 
-UART_HandleTypeDef huart2;
+static UART_HandleTypeDef huart2;
 
 /// @brief      Интерфейс UART, используемый для связи с ПК(?) //TODO выяснить как называется конкретно
-UART_HandleTypeDef _Main_Handle_UART3_PC;
+static UART_HandleTypeDef _Main_Handle_UART3_PC;
 
 DMA_HandleTypeDef hdma_usart3_tx;
 
-SPI_HandleTypeDef hspi2;
+/// @brief      Интерфейс SPI для связи с HI3220
+static SPI_HandleTypeDef _Main_Handle_SPI2_HI3220;
 
 int main(void)
 {
@@ -36,7 +37,7 @@ int main(void)
 
     Result += _Main_Clock_Configuration();
     // Result += _Main_SPI_1_Configuration();
-    // Result += _Main_SPI_2_Configuration();
+    Result += _Main_SPI_2_Configuration(&_Main_Handle_SPI2_HI3220);
     // Result += _Main_SPI_3_Configuration();
     // Result += _Main_I2C_1_Configuration();
     // Result += _Main_I2C_4_Configuration();
@@ -70,7 +71,7 @@ int main(void)
     return 0;
 }
 
-void _Main_Clock_Configuration(void)
+int _Main_Clock_Configuration(void)
 {
     RCC_OscInitTypeDef RCC_OscInitStruct = {0};
     RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
