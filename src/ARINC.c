@@ -24,8 +24,11 @@
 /// @brief      Таймаута связи с сервером ХАЭ-21 (авиационный хронометр)
 #define ARINC_PC_RECEIVE_TIMEOUT_XAE21 2500//
 
-/// @brief Общее количество камер в системе
+/// @brief      Общее количество камер в системе
 #define ARINC_CHANNELS_TOTAL 6U
+
+/// @brief      Общее количество камер в системе
+#define ARINC_INA226_MAX_POWER 2.0f
 
 /// @brief Порт и пин RX
 #define ARINC_PIN_RX GPIOD, GPIO_PIN_8  // mcu2pc_Pin
@@ -59,6 +62,8 @@
 
 /// @brief      Количество элементов в кольцевом буфере
 #define ARINC_UART_OUTPUT_BUFFER_LENGTH 200
+
+#define ARINC_UART3_TX_BUFFER_SIZE 200 //UART3_TX_BUFFER_SIZE
 
 /// @brief  Структура с описанием одного GPIO пина ARINC
 typedef struct ARINC_Pin_Struct
@@ -97,8 +102,8 @@ static const ARINC_Pin_Struct ARINC_GPO_Pins_Map[TOOL_HI3220_GPO_COUNT] = {
     { ARINC_PIN_CS, ARINC_HI3220_PIN_INVERTED_ON }
 };
 
-Circular_Buffer_Struct ARINC_UART_Output_Circular_Buffer;
-uint8_t                ARINC_TX_Buffer[ARINC_UART_OUTPUT_BUFFER_LENGTH];
+Circular_Buffer_Struct ARINC_UART_Output_Circular_Buffer; //TCbuffer cbARINCUartOutput //TODO пока для ориентации пусть побудет, чтобы проще искать по старому и новому коду
+uint8_t                ARINC_TX_Buffer[ARINC_UART_OUTPUT_BUFFER_LENGTH]; //arincTxBuffer //TODO пока для ориентации пусть побудет, чтобы проще искать по старому и новому коду
 
 /// @brief      Функция записи на цифровой вывод МК
 /// @param[in]  Pin    Вывод МК, подключенного к HI3220 (см. Tool_HI3220_GPO_Enum)
@@ -131,25 +136,25 @@ Tool_Common_Pin_State_Enum ARINC_HI3220_Read_Pin(const Tool_HI3220_GPI_Enum Pin)
 ///                 В противном случае, возвращает код ошибки
 int ARINC_HI3220_Configuration(void);
 
-/// @brief Глобальная структура управления кабиной
-/// @details Содержит текущее состояние органов управления CAPT и FO.
-///          Обновляется при приёме данных от внешних систем.
+/// @brief      Глобальная структура управления кабиной
+/// @details    Содержит текущее состояние органов управления CAPT и FO.
+///                 Обновляется при приёме данных от внешних систем.
 ARINC_Control_Struct ARINC_Control;
 
-/// @brief Глобальная структура даты и времени
-/// @details Содержит текущие значения времени и даты, получаемые от ХАЭ-21
-///          через ARINC слова 150 (время в binary) и 260 (дата в BCD).
+/// @brief      Глобальная структура даты и времени
+/// @details    Содержит текущие значения времени и даты, получаемые от ХАЭ-21
+///                 через ARINC слова 150 (время в binary) и 260 (дата в BCD).
 ARINC_Date_Time_Struct ARINC_DateTime;
 
-/// @brief Номер активного канала камеры [1:6]
-/// @details Определяется по положению переключателя камер.
-///          Значение 0 означает неисправность переключателя.
+/// @brief      Номер активного канала камеры [1:6]
+/// @details    Определяется по положению переключателя камер.
+///                 Значение 0 означает неисправность переключателя
 uint8_t ARINC_Channel_Number;
 
-/// @brief Центральная структура системного статуса
-/// @details Глобальная переменная для централизованного мониторинга состояния
-///          всех подсистем. Обновляется различными модулями и используется
-///          для формирования сводного статуса в ARINC слове 0300.
+/// @brief      Центральная структура системного статуса
+/// @details    Глобальная переменная для централизованного мониторинга состояния
+///                 всех подсистем. Обновляется различными модулями и используется
+///                 для формирования сводного статуса в ARINC слове 0300
 ARINC_System_Status_Struct ARINC_System_Status;
 
 // TODO заглушка
@@ -340,13 +345,13 @@ int ARINC_HI3220_Configuration(void)
 
     // Инициализация фильтра (стр. 13–14). Включение приема сообщений со всеми метками на всех каналах
     Value = 0xFF;
-    for (int i = TOOL_HI3220_RXEN_MAP; i < TOOL_HI3220_RXINT_MAP; i++)
+    for (uint16_t i = TOOL_HI3220_RXEN_MAP; i < TOOL_HI3220_RXINT_MAP; i++)
     {
         Tool_HI3220_Address_Write(i, &Value, 1, NULL);
     }
 
     // Инициализация таблицы прерываний по меткам. Включение прерываний по приходу любых сообщений
-    for (int i = TOOL_HI3220_RXINT_MAP; i < TOOL_HI3220_RXINT_ENDMAP; i++)
+    for (uint16_t i = TOOL_HI3220_RXINT_MAP; i < TOOL_HI3220_RXINT_ENDMAP; i++)
     {
         Tool_HI3220_Address_Write(i, &Value, 1, NULL);
     }
@@ -416,11 +421,10 @@ void ARINC_Process(void)
     //                           ОБРАБОТКА ПРЕРЫВАНИЙ ОТ HI-3220
     // ════════════════════════════════════════════════════════════════════════════════════════
 
-    /// @brief Чтение состояния пина прерывания HI-3220
-    /// @details INT активен по низкому уровню (0 = есть прерывание, 1 = нет прерывания)
+    /// @brief      Чтение состояния пина прерывания HI-3220
+    /// @details    INT активен по низкому уровню (0 = есть прерывание, 1 = нет прерывания)
     uint8_t Interrupt_Pin_State = ARINC_HI3220_Read_Pin(TOOL_HI3220_GPI_INT);
-
-    // Если прерывание активно (низкий уровень = 0)
+    
     if (Interrupt_Pin_State == TOOL_COMMON_PIN_STATE_LOW)
     {
         // ┌─────────────────────────────────────────────────────────────────────────┐
@@ -430,49 +434,55 @@ void ARINC_Process(void)
         // после получения прерывания, иначе HI-3220 может "зависнуть"
 
         ARINC_HI3220_Write_Pin(TOOL_HI3220_GPO_ACK, TOOL_COMMON_PIN_STATE_LOW);   // ACK активен
-        HAL_Delay(6);                                                             // Задержка 6 микросекунд (требование HI-3220)
+        HAL_Delay(6);                                                             // Задержка 6 микросекунд(или милисекунд, в исходном коде было так) (требование HI-3220)
         ARINC_HI3220_Write_Pin(TOOL_HI3220_GPO_ACK, TOOL_COMMON_PIN_STATE_HIGH);  // ACK неактивен
 
         // ┌─────────────────────────────────────────────────────────────────────────┐
         // │                     ЧТЕНИЕ РЕГИСТРА ПРЕРЫВАНИЙ                          │
         // └─────────────────────────────────────────────────────────────────────────┘
-        /// @brief      Быстрое чтение регистра RPIRL (Receiver Processor Interrupt Register Low)
-        /// @details    Содержит битовые флаги прерываний от приёмных каналов:
-        ///                 Бит 0: прерывание от RX канала 0
-        ///                 Бит 1: прерывание от RX канала 1
-        Tool_HI3220_Get_Register(TOOL_HI3220_RPIRL_FAST, &Interrupt_Register);
+        /// @brief      Чтение регистра RPIRL (Receiver Processor Interrupt Register Low)
+        /// @details    Содержит битовые флаги прерываний от приёмных каналов: <br>
+        ///                 Бит 0: прерывание от RX канала 0 <br>
+        ///                 Бит 1: прерывание от RX канала 1 <br>
+        if (Tool_HI3220_Get_Register(TOOL_HI3220_RPIRL_FAST, &Interrupt_Register) != TOOLS_ERROR_CODE_ALL_OK) 
+        {
+            ARINC_Print_Err(Error_Result);
+            return;
+        }
+        Error_Result++;
 
-        //TODO еще почему-то везде был Ch2 (третий, если по сквозной нумерации) но он был на заглушках/пустой поэтому пока убрал его совсем из всех упоминаний/переменных/макросов
         // ┌─────────────────────────────────────────────────────────────────────────┐
         // │                     ОБРАБОТКА КАНАЛА 0 (ОСНОВНОЙ)                       │
         // └─────────────────────────────────────────────────────────────────────────┘
         if ((Interrupt_Register & 0x01) == 0x01) // Есть данные в FIFO канала 0
         {
+            Words_Count = 0;
 
             // Установка указателя на счётчик FIFO канала 0
             // Чтение количества слов в FIFO (каждое слово = 4 байта)
-            Tool_HI3220_Address_Read(TOOL_HI3220_FCV0, &Words_Count, 1, NULL);
+            if (Tool_HI3220_Address_Read(TOOL_HI3220_FCV0, &Words_Count, 1, NULL) != TOOLS_ERROR_CODE_ALL_OK) 
+            {
+                ARINC_Print_Err(Error_Result);
+                return;
+            }
+            Error_Result++;
 
             if (Words_Count > 0)
             {
                 // Чтение всех слов из FIFO в приёмный буфер
 
-                uint32_t ARINC_Receive_Buffer[8]; // буфер на 8 ARINC-слов
-                uint8_t channel = 2;  // номер канала FIFO
-                uint8_t words_to_read = 8;
+                uint32_t ARINC_Receive_Buffer[Words_Count]; // автоматический буфер в стеке //TODO проверить как будет работать, может лучше перенести в начало и выделить памяти с запасом
 
                 if (Tool_HI3220_ARINC_RX(ARINC_FIFO_CHANNEL_0, &ARINC_Receive_Buffer[0], Words_Count) != TOOLS_ERROR_CODE_ALL_OK) 
                 {
-                    ARINC_Print_Err();
+                    ARINC_Print_Err(Error_Result);
+                    return;
                 }
-
-                Tool_HI3220_Read_FIFO(0, /* FIFO канал 0 */
-                                      ARINC_Receive_Buffer,
-                                      Words_Count);
+                Error_Result++;
 
                 // Обработка каждого принятого ARINC слова
-                char *Buffer_Pointer = (char *)ARINC_Receive_Buffer;
-                for (int i = 0; i < Words_Count; i++)
+                uint8_t *Buffer_Pointer = (uint8_t *)ARINC_Receive_Buffer;
+                for (uint8_t i = 0; i < Words_Count; i++)
                 {
                     // Парсинг слова (определение типа по Label и извлечение данных)
                     ARINC_Parse_Message_Channel_1(Buffer_Pointer);
@@ -487,20 +497,32 @@ void ARINC_Process(void)
         // │                  ОБРАБОТКА КАНАЛА 1 (РЕЗЕРВНЫЙ/ВСПОМОГАТЕЛЬНЫЙ)         │
         // └─────────────────────────────────────────────────────────────────────────┘
         if ((Interrupt_Register & 0x02) == 0x02)
-        {  // Есть данные в FIFO канала 1
+        {  // Есть данные в FIFO канала 1 (обработчик аналогично каналу 0)
 
-            // Аналогичная обработка для канала 1
-            Tool_HI3220_Address_Write_MAP(TOOL_HI3220_FCV1);
-            uint8_t Words_Count = Tool_HI3220_Address_Read_At_MAP();
+            Words_Count = 0;
+
+            if (Tool_HI3220_Address_Read(TOOL_HI3220_FCV1, &Words_Count, 1, NULL) != TOOLS_ERROR_CODE_ALL_OK) 
+            {
+                ARINC_Print_Err(Error_Result);
+                return;
+            }
+            Error_Result++;
 
             if (Words_Count > 0)
             {
-                Tool_HI3220_Read_FIFO(1, /* FIFO канал 1 */
-                                      ARINC_Receive_Buffer,
-                                      Words_Count);
+                // Чтение всех слов из FIFO в приёмный буфер
 
-                char *Buffer_Pointer = (char *)ARINC_Receive_Buffer;
-                for (int i = 0; i < Words_Count; i++)
+                uint32_t ARINC_Receive_Buffer[Words_Count]; // автоматический буфер в стеке //TODO проверить как будет работать, может лучше перенести в начало и выделить памяти с запасом
+
+                if (Tool_HI3220_ARINC_RX(ARINC_FIFO_CHANNEL_1, &ARINC_Receive_Buffer[0], Words_Count) != TOOLS_ERROR_CODE_ALL_OK) 
+                {
+                    ARINC_Print_Err(Error_Result);
+                    return;
+                }
+                Error_Result++;
+
+                uint8_t *Buffer_Pointer = (uint8_t *)ARINC_Receive_Buffer;
+                for (uint8_t i = 0; i < Words_Count; i++)
                 {
                     // В текущей реализации канал 1 не используется активно
                     ARINC_Parse_Message_Channel_2(Buffer_Pointer);
@@ -509,6 +531,8 @@ void ARINC_Process(void)
             }
         }
     }
+    
+    //TODO еще почему-то в прошлой версии везде был Ch2 (третий, если по сквозной нумерации) но он был на заглушках/пустой поэтому пока убрал его совсем из всех упоминаний/переменных/макросов
 
     // ════════════════════════════════════════════════════════════════════════════════════════
     //                       ФОРМИРОВАНИЕ И ОТПРАВКА СТАТУСНОГО СЛОВА 0300
@@ -526,7 +550,7 @@ void ARINC_Process(void)
         // ┌─────────────────────────────────────────────────────────────────────────┐
         // │                        БАЗОВЫЕ ПОЛЯ СЛОВА 0300                          │
         // └─────────────────────────────────────────────────────────────────────────┘
-        Status_Word_300.Struct.Label    = 0x300;  // Метка слова
+        Status_Word_300.Struct.Label    = 300;  // Метка слова
         Status_Word_300.Struct.SDI      = 0x03;   // Source/Destination ID
         Status_Word_300.Struct.Not_Used = 0x00;   // Зарезервированные биты
 
@@ -538,7 +562,7 @@ void ARINC_Process(void)
         ///                Неисправности камер не критичны для всей системы.
 
         // Камера 1
-        Status_Word_300.Struct.Camera_1_Fault = (T_INA226_Get_Power(&Power_Sensor_A[0]) < 2.0f);
+        Status_Word_300.Struct.Camera_1_Fault = (T_INA226_Get_Power(&Power_Sensor_A[0]) < ARINC_INA226_MAX_POWER);
         if (Status_Word_300.Struct.Camera_1_Fault)
         {
             Non_Critical_Fault = TOOL_COMMON_BOOLEAN_LEVEL_TRUE;
@@ -546,7 +570,7 @@ void ARINC_Process(void)
         }
 
         // Камера 2
-        Status_Word_300.Struct.Camera_2_Fault = (T_INA226_Get_Power(&Power_Sensor_A[1]) < 2.0f);
+        Status_Word_300.Struct.Camera_2_Fault = (T_INA226_Get_Power(&Power_Sensor_A[1]) < ARINC_INA226_MAX_POWER);
         if (Status_Word_300.Struct.Camera_2_Fault)
         {
             Non_Critical_Fault = TOOL_COMMON_BOOLEAN_LEVEL_TRUE;
@@ -554,7 +578,7 @@ void ARINC_Process(void)
         }
 
         // Камера 3
-        Status_Word_300.Struct.Camera_3_Fault = (T_INA226_Get_Power(&Power_Sensor_A[2]) < 2.0f);
+        Status_Word_300.Struct.Camera_3_Fault = (T_INA226_Get_Power(&Power_Sensor_A[2]) < ARINC_INA226_MAX_POWER);
         if (Status_Word_300.Struct.Camera_3_Fault)
         {
             Non_Critical_Fault = TOOL_COMMON_BOOLEAN_LEVEL_TRUE;
@@ -562,7 +586,7 @@ void ARINC_Process(void)
         }
 
         // Камера 4
-        Status_Word_300.Struct.Camera_4_Fault = (T_INA226_Get_Power(&Power_Sensor_A[3]) < 2.0f);
+        Status_Word_300.Struct.Camera_4_Fault = (T_INA226_Get_Power(&Power_Sensor_A[3]) < ARINC_INA226_MAX_POWER);
         if (Status_Word_300.Struct.Camera_4_Fault)
         {
             Non_Critical_Fault = TOOL_COMMON_BOOLEAN_LEVEL_TRUE;
@@ -570,7 +594,7 @@ void ARINC_Process(void)
         }
 
         // Камера 5
-        Status_Word_300.Struct.Camera_5_Fault = (T_INA226_Get_Power(&Power_Sensor_A[4]) < 2.0f);
+        Status_Word_300.Struct.Camera_5_Fault = (T_INA226_Get_Power(&Power_Sensor_A[4]) < ARINC_INA226_MAX_POWER);
         if (Status_Word_300.Struct.Camera_5_Fault)
         {
             Non_Critical_Fault = TOOL_COMMON_BOOLEAN_LEVEL_TRUE;
@@ -578,7 +602,7 @@ void ARINC_Process(void)
         }
 
         // Камера 6
-        Status_Word_300.Struct.Camera_6_Fault = (T_INA226_Get_Power(&Power_Sensor_A[5]) < 2.0f);
+        Status_Word_300.Struct.Camera_6_Fault = (T_INA226_Get_Power(&Power_Sensor_A[5]) < ARINC_INA226_MAX_POWER);
         if (Status_Word_300.Struct.Camera_6_Fault)
         {
             Non_Critical_Fault = TOOL_COMMON_BOOLEAN_LEVEL_TRUE;
@@ -586,22 +610,22 @@ void ARINC_Process(void)
         }
 
         // ┌─────────────────────────────────────────────────────────────────────────┐
-        // │                    СТАТУСЫ СЕРВЕРОВ И ОБОРУДОВАНИЯ                     │
+        // │                    СТАТУСЫ СЕРВЕРОВ И ОБОРУДОВАНИЯ                      │
         // └─────────────────────────────────────────────────────────────────────────┘
-        /// @details Копирование статусов из центральной структуры системного состояния
+        /// @details    Копирование статусов из центральной структуры системного состояния
         Status_Word_300.Struct.Service_Router_Status = ARINC_System_Status.Service_Router_Status;
         Status_Word_300.Struct.Storage_Status        = ARINC_System_Status.Storage_Server_Status;
         Status_Word_300.Struct.XAE21_Fault           = ARINC_System_Status.XAE21_Fault;
         Status_Word_300.Struct.Camera_Switch_Fault   = ARINC_System_Status.Camera_Switch_Fault;
 
         // ┌─────────────────────────────────────────────────────────────────────────┐
-        // │                      ОПРЕДЕЛЕНИЕ КРИТИЧНОСТИ ОТКАЗОВ                   │
+        // │                      ОПРЕДЕЛЕНИЕ КРИТИЧНОСТИ ОТКАЗОВ                    │
         // └─────────────────────────────────────────────────────────────────────────┘
-        /// @brief Логика определения критических отказов
-        /// @details Критический отказ возникает при:
-        ///          - Отказе сервера маршрутизации (srvrouter_stat == 1)
-        ///          - Отказе сервера накопления (storage_stat == 1)
-        ///          - Потере ВСЕХ камер (cams_N_faults >= CHANNELS_TOTAL)
+        /// @brief      Логика определения критических отказов
+        /// @details    Критический отказ возникает при:
+        ///                 Отказе сервера маршрутизации (srvrouter_stat == 1)
+        ///                 Отказе сервера накопления (storage_stat == 1)
+        ///                 Потере ВСЕХ камер (cams_N_faults >= CHANNELS_TOTAL)
         if (ARINC_System_Status.Service_Router_Status == 1 ||
             ARINC_System_Status.Storage_Server_Status == 1 ||
             Cameras_Fault_Count >= ARINC_CHANNELS_TOTAL)
@@ -610,10 +634,10 @@ void ARINC_Process(void)
         }
 
         // ┌─────────────────────────────────────────────────────────────────────────┐
-        // │                   УЧЁТ НЕКРИТИЧЕСКИХ НЕИСПРАВНОСТЕЙ                    │
+        // │                   УЧЁТ НЕКРИТИЧЕСКИХ НЕИСПРАВНОСТЕЙ                     │
         // └─────────────────────────────────────────────────────────────────────────┘
-        /// @details Некритические неисправности не останавливают работу системы,
-        ///          но должны быть переданы для информирования экипажа
+        /// @details    Некритические неисправности не останавливают работу системы,
+        ///                 но должны быть переданы для информирования экипажа
         if (Status_Word_300.Struct.XAE21_Fault)
         {
             Non_Critical_Fault = TOOL_COMMON_BOOLEAN_LEVEL_TRUE;
@@ -625,7 +649,7 @@ void ARINC_Process(void)
         }
 
         // ┌─────────────────────────────────────────────────────────────────────────┐
-        // │                    ИТОГОВОЕ ОПРЕДЕЛЕНИЕ СТАТУСА СИСТЕМЫ                │
+        // │                    ИТОГОВОЕ ОПРЕДЕЛЕНИЕ СТАТУСА СИСТЕМЫ                 │
         // └─────────────────────────────────────────────────────────────────────────┘
         /// @brief Трёхуровневая система статусов
         if (Critical_Fault)
@@ -645,28 +669,31 @@ void ARINC_Process(void)
         }
 
         // ┌─────────────────────────────────────────────────────────────────────────┐
-        // │                      ФИНАЛЬНЫЕ ПОЛЯ И ОТПРАВКА                         │
+        // │                      ФИНАЛЬНЫЕ ПОЛЯ И ОТПРАВКА                          │
         // └─────────────────────────────────────────────────────────────────────────┘
-        /// @brief Установка режима работы передатчика
+        /// @brief      Установка режима работы передатчика
         Status_Word_300.Struct.Matrix = ARINC_A300_MATRIX_NORMAL_OPERATION;
 
-        /// @brief Отправка сформированного слова через HI-3220
-        /// @details Слово отправляется через канал 0 в формате массива байтов
-        Tool_HI3220_Transmit_Direct(0,                           /* канал передачи */
-                                    Status_Word_300.ARINC_Array, /* байтовый массив */
-                                    1 /* количество слов */);
+        /// @brief      Отправка сформированного слова через HI-3220
+        /// @details    Слово отправляется через канал 0 в формате массива байтов
+        if (Tool_HI3220_ARINC_TX(ARINC_FIFO_CHANNEL_0, &Status_Word_300.Raw, 1) != TOOLS_ERROR_CODE_ALL_OK) 
+        {
+            ARINC_Print_Err(Error_Result);
+            return;
+        }
+        Error_Result++;
     }
 
     // ════════════════════════════════════════════════════════════════════════════════════════
     //                              ОБСЛУЖИВАНИЕ UART ПЕРЕДАЧИ
     // ════════════════════════════════════════════════════════════════════════════════════════
 
-    /// @brief Проверка готовности UART3 для передачи данных
-    /// @details Если UART свободен и есть данные в буфере - отправляем через DMA
+    /// @brief      Проверка готовности UART3 для передачи данных
+    /// @details    Если UART свободен и есть данные в буфере - отправляем через DMA
     if (HUART3.gState == HAL_UART_STATE_READY)
     {
         // Определение количества байтов для передачи
-        int Bytes_To_Send = Circular_Buffer_ARINC_UART_Output.Count;
+        uint16_t Bytes_To_Send = ARINC_UART_Output_Circular_Buffer.Element_Count;
         if (Bytes_To_Send > ARINC_UART3_TX_BUFFER_SIZE)
         {
             Bytes_To_Send = ARINC_UART3_TX_BUFFER_SIZE;  // Ограничение размера буфера DMA
@@ -674,7 +701,7 @@ void ARINC_Process(void)
 
         // Извлечение данных из кольцевого буфера
         Circular_Buffer_Get_First_N_Bytes(&Circular_Buffer_ARINC_UART_Output,
-                                          (char *)UART3_TX_Buffer,
+                                          (uint8_t *)UART3_TX_Buffer,
                                           Bytes_To_Send);
 
         // Запуск DMA передачи
